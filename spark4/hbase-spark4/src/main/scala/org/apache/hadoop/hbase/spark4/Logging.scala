@@ -21,7 +21,7 @@ import org.apache.yetus.audience.InterfaceAudience
 import org.slf4j.{ Logger, LoggerFactory }
 
 /**
- * Mirrors `org.apache.hadoop.hbase.spark.Logging` in `hbase-spark` for Spark-independent SLF4J use.
+ * Mirrors `org.apache.hadoop.hbase.spark4.Logging` in `hbase-spark` for Spark-independent SLF4J use.
  */
 @InterfaceAudience.Private
 trait Logging {

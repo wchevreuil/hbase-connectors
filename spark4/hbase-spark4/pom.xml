@@ -43,6 +43,14 @@
       <artifactId>hbase-common</artifactId>
     </dependency>
     <dependency>
+      <groupId>org.apache.hbase</groupId>
+      <artifactId>hbase-client</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.hbase</groupId>
+      <artifactId>hbase-mapreduce</artifactId>
+    </dependency>
+    <dependency>
       <groupId>org.apache.hbase.thirdparty</groupId>
       <artifactId>hbase-shaded-miscellaneous</artifactId>
     </dependency>
@@ -101,9 +109,9 @@
       <scope>provided</scope>
     </dependency>
     <dependency>
-      <groupId>org.apache.hbase.connectors.spark</groupId>
-      <artifactId>hbase-spark-protocol-shaded</artifactId>
-      <version>${revision}</version>
+      <groupId>org.apache.hadoop</groupId>
+      <artifactId>hadoop-client</artifactId>
+      <version>${hadoop.version}</version>
     </dependency>
     <dependency>
       <groupId>org.apache.yetus</groupId>
@@ -199,7 +207,7 @@
           <ignoreRuleFailures>true</ignoreRuleFailures>
           <rules>
             <rule>
-              <classPattern>(?!.*(.generated.|.tmpl.|\$|org.apache.hadoop.hbase.spark.hbase.package)).*</classPattern>
+              <classPattern>(?!.*(.generated.|.tmpl.|\$|org.apache.hadoop.hbase.spark.hbase.package|org.apache.hadoop.hbase.spark4.hbase.package)).*</classPattern>
               <includeTestClasses>false</includeTestClasses>
               <includePublicClasses>true</includePublicClasses>
               <includePackagePrivateClasses>false</includePackagePrivateClasses>
