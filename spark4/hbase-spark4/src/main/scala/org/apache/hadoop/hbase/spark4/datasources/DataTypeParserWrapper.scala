@@ -15,14 +15,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package org.apache.hadoop.hbase.spark4.datasources
 
-package org.apache.hadoop.hbase.spark
-
+import org.apache.spark.sql.catalyst.parser.DataTypeParser
+import org.apache.spark.sql.types.DataType
 import org.apache.yetus.audience.InterfaceAudience
 
 /**
- * Phase-0 build marker for the Spark 4 connector line (`hbase-spark4`).
- * Replaced incrementally during feature porting; see ../../SPARK4-ROADMAP.md at repo root.
+ * Parses Spark SQL data type strings using the Spark 4 `DataTypeParser` API (static `parseDataType`).
  */
 @InterfaceAudience.Private
-private[hbase] object Spark4Placeholder
+object DataTypeParserWrapper {
+  def parse(dataTypeString: String): DataType =
+    DataTypeParser.parseDataType(dataTypeString)
+}
