@@ -1015,8 +1015,12 @@
       <activation>
         <activeByDefault>false</activeByDefault>
       </activation>
-      <modules>
+      <!-- Build spark4 before assembly so shaded protocol jars exist on workspace classpath for spark4 -->
+      <modules combine.children="override">
+        <module>kafka</module>
+        <module>spark</module>
         <module>spark4</module>
+        <module>hbase-connectors-assembly</module>
       </modules>
     </profile>
     <profile>

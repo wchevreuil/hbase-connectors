@@ -34,7 +34,8 @@ package org.apache.hadoop.hbase.spark4.datasources
  */
 
 import org.apache.hadoop.hbase.spark4.Logging
-import org.apache.hadoop.hbase.spark4.datasources.JavaBytesEncoder.JavaBytesEncoder
+import org.apache.hadoop.hbase.spark.datasources.{ BoundRange, BoundRanges, BytesEncoder, JavaBytesEncoder }
+import org.apache.hadoop.hbase.spark.datasources.JavaBytesEncoder.JavaBytesEncoder
 import org.apache.hadoop.hbase.spark4.hbase._
 import org.apache.hadoop.hbase.util.Bytes
 import org.apache.spark.sql.types._

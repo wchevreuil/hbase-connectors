@@ -10,19 +10,20 @@
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
+ * distributed under this License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.hadoop.hbase.spark4.datasources
+package org.apache.hadoop.hbase.spark.datasources
+
+import scala.util.Try
 
 import org.apache.hadoop.hbase.HBaseInterfaceAudience
-import org.apache.hadoop.hbase.spark4.Logging
-import org.apache.hadoop.hbase.spark4.datasources.JavaBytesEncoder.JavaBytesEncoder
 import org.apache.spark.sql.types._
 import org.apache.yetus.audience.InterfaceAudience
 import org.apache.yetus.audience.InterfaceStability
+import org.slf4j.{Logger, LoggerFactory}
 
 /**
  * The ranges for the data type whose size is known. Whether the bound is inclusive
@@ -79,7 +80,7 @@ trait BytesEncoder {
       filterBytes: Array[Byte],
       offset2: Int,
       length2: Int,
-      ops: JavaBytesEncoder): Boolean
+      ops: JavaBytesEncoder.JavaBytesEncoder): Boolean
 
   /**
    * Currently, it is used for partition pruning.
@@ -98,9 +99,24 @@ trait BytesEncoder {
 
 @InterfaceAudience.LimitedPrivate(Array(HBaseInterfaceAudience.SPARK))
 @InterfaceStability.Evolving
-object JavaBytesEncoder extends Enumeration with Logging {
+object JavaBytesEncoder extends Enumeration {
   type JavaBytesEncoder = Value
   val Greater, GreaterEqual, Less, LessEqual, Equal, Unknown = Value
+
+  private val log: Logger = LoggerFactory.getLogger("org.apache.hadoop.hbase.spark.datasources.JavaBytesEncoder")
+
+  private def naiveFallbackEncoder(): BytesEncoder = {
+    val candidates = Seq(
+      "org.apache.hadoop.hbase.spark4.datasources.NaiveEncoder",
+      "org.apache.hadoop.hbase.spark.datasources.NaiveEncoder")
+    candidates
+      .map(n => Try(Class.forName(n).newInstance.asInstanceOf[BytesEncoder]).toOption)
+      .flatten
+      .headOption
+      .getOrElse(
+        throw new IllegalStateException(
+          "Neither Spark 3 nor Spark 4 NaiveEncoder was loadable while falling back BytesEncoder"))
+  }
 
   /**
    * create the encoder/decoder
@@ -108,17 +124,15 @@ object JavaBytesEncoder extends Enumeration with Logging {
    * @param clsName: the class name of the encoder/decoder class
    * @return the instance of the encoder plugin.
    */
-  def create(clsName: String): BytesEncoder = {
-    try {
-      Class
-        .forName(clsName)
-        .getDeclaredConstructor()
-        .newInstance()
-        .asInstanceOf[BytesEncoder]
-    } catch {
-      case _: Throwable =>
-        logWarning(s"$clsName cannot be initiated, falling back to naive encoder")
-        new NaiveEncoder()
-    }
-  }
+  def create(clsName: String): BytesEncoder =
+    Try(Class.forName(clsName).newInstance.asInstanceOf[BytesEncoder])
+      .recover {
+        case t: Throwable =>
+          log.warn(
+            "{} cannot be initiated, falling back to naive encoder: {}",
+            clsName: Any,
+            String.valueOf(t): Any)
+          naiveFallbackEncoder()
+      }
+      .get
 }

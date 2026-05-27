@@ -50,6 +50,8 @@ class HBaseSpark4DataSourceCatalogSuite
       .builder()
       .master("local[1]")
       .appName("HBaseSpark4DataSourceCatalogSuite")
+      .config("spark.driver.bindAddress", "127.0.0.1")
+      .config("spark.driver.host", "127.0.0.1")
       .getOrCreate()
   }
 

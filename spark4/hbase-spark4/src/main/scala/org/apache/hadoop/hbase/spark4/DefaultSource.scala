@@ -27,6 +27,22 @@ import org.apache.hadoop.hbase.TableName
 import org.apache.hadoop.hbase.client._
 import org.apache.hadoop.hbase.io.ImmutableBytesWritable
 import org.apache.hadoop.hbase.mapred.TableOutputFormat
+import org.apache.hadoop.hbase.spark.{
+  AndLogicExpression,
+  DynamicLogicExpression,
+  EqualLogicExpression,
+  GreaterThanLogicExpression,
+  GreaterThanOrEqualLogicExpression,
+  IsNullLogicExpression,
+  LessThanLogicExpression,
+  LessThanOrEqualLogicExpression,
+  OrLogicExpression,
+  PassThroughLogicExpression,
+  PushdownMappedField,
+  SparkSQLPushDownFilter,
+  StartsWithLogicExpression
+}
+import org.apache.hadoop.hbase.spark.datasources.JavaBytesEncoder
 import org.apache.hadoop.hbase.spark4.datasources._
 import org.apache.hadoop.hbase.util.{Bytes, PositionedByteRange, SimplePositionedMutableByteRange}
 import org.apache.hadoop.mapred.JobConf
@@ -35,6 +51,7 @@ import org.apache.spark.sql.{DataFrame, Row, SaveMode, SQLContext}
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types._
 import org.apache.yetus.audience.InterfaceAudience
+import scala.jdk.CollectionConverters._
 import scala.collection.mutable
 
 /**
@@ -388,8 +405,25 @@ case class HBaseRelation(
         getList.add(get)
       })
 
-    val pushDownFilterJava: Option[org.apache.hadoop.hbase.filter.Filter] = None
-
+    val pushDownFilterJava =
+      if (usePushDownColumnFilter && pushDownDynamicLogicExpression != null) {
+        val columnMappings =
+          requiredQualifierDefinitionList.map { field =>
+            new PushdownMappedField {
+              override def colName(): String = field.colName
+              override def cfBytes(): Array[Byte] = field.cfBytes
+              override def colBytes(): Array[Byte] = field.colBytes
+            }
+          }
+        Some(
+          new SparkSQLPushDownFilter(
+            pushDownDynamicLogicExpression,
+            valueArray,
+            columnMappings.asJava,
+            encoderClsName))
+      } else {
+        None
+      }
     val hRdd = new HBaseTableScanRDD(
       this,
       hbaseContext,

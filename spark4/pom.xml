@@ -37,6 +37,7 @@
   </description>
 
   <modules>
+    <module>hbase-spark-pushdown</module>
     <module>hbase-spark4</module>
   </modules>
 

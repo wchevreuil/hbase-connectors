@@ -19,7 +19,7 @@ package org.apache.hadoop.hbase.spark4.datasources
 
 import java.util.ArrayList
 import org.apache.hadoop.hbase.client._
-import org.apache.hadoop.hbase.filter.Filter
+import org.apache.hadoop.hbase.spark.SparkSQLPushDownFilter
 import org.apache.hadoop.hbase.spark4._
 import org.apache.hadoop.hbase.spark4.datasources.HBaseResources._
 import org.apache.hadoop.hbase.spark4.hbase._
@@ -34,7 +34,7 @@ import scala.collection.mutable
 class HBaseTableScanRDD(
     relation: HBaseRelation,
     val hbaseContext: HBaseContext,
-    @transient val filter: Option[Filter] = None,
+    @transient val filter: Option[SparkSQLPushDownFilter] = None,
     val columns: Seq[Field] = Seq.empty)
     extends RDD[Result](relation.sqlContext.sparkContext, Nil) {
   @transient var ranges = Seq.empty[Range]
@@ -122,7 +122,7 @@ class HBaseTableScanRDD(
   private def buildGets(
       tbr: TableResource,
       g: Seq[Array[Byte]],
-      filter: Option[Filter],
+      filter: Option[SparkSQLPushDownFilter],
       columns: Seq[Field],
       hbaseContext: HBaseContext): Iterator[Result] = {
     g.grouped(relation.bulkGetSize).flatMap {
@@ -180,7 +180,7 @@ class HBaseTableScanRDD(
 
   private def buildScan(
       range: Range,
-      filter: Option[Filter],
+      filter: Option[SparkSQLPushDownFilter],
       columns: Seq[Field]): Scan = {
     val scan = (range.lower, range.upper) match {
       case (Some(Bound(a, b)), Some(Bound(c, d))) => new Scan(a, c)
@@ -296,11 +296,11 @@ class HBaseTableScanRDD(
 case class SerializedFilter(b: Option[Array[Byte]])
 
 object SerializedFilter {
+  def toSerializedTypedFilter(f: Option[SparkSQLPushDownFilter]): SerializedFilter =
+    SerializedFilter(f.map(_.toByteArray))
 
-  /** Phase 1 stub: server-side protobuf filter wiring is deferred (see SPARK4-ROADMAP.md). */
-  def toSerializedTypedFilter(f: Option[Filter]): SerializedFilter = SerializedFilter(None)
-
-  def fromSerializedFilter(sf: SerializedFilter): Option[Filter] = None
+  def fromSerializedFilter(sf: SerializedFilter): Option[SparkSQLPushDownFilter] =
+    sf.b.map(SparkSQLPushDownFilter.parseFrom(_))
 }
 
 @InterfaceAudience.Private
