@@ -28,13 +28,11 @@
   </parent>
 
   <artifactId>spark4</artifactId>
-  <packaging>pom</packaging>
   <version>${revision}</version>
+  <packaging>pom</packaging>
   <name>Apache HBase - Spark 4</name>
-  <description>
-    Maven reactor for the Apache Spark 4.x HBase connector (parallel to spark/).
-    Activated with profile -Pspark4 on the repository root pom. Requires JDK 17+ (Spark 4.x).
-  </description>
+  <description>Maven reactor for the Apache Spark 4.x HBase connector (parallel to spark/).
+    Activated with profile -Pspark4 on the repository root pom. Requires JDK 17+ (Spark 4.x).</description>
 
   <modules>
     <module>hbase-spark-pushdown</module>
@@ -69,10 +67,8 @@
               <rules>
                 <requireJavaVersion>
                   <version>[17,)</version>
-                  <message>
-                    The Spark 4 connector reactor requires JDK 17 or newer (Apache Spark 4.x).
-                    Omit -Pspark4 to build only the Kafka and Spark 3 modules on JDK 8+.
-                  </message>
+                  <message>The Spark 4 connector reactor requires JDK 17 or newer (Apache Spark 4.x).
+                    Omit -Pspark4 to build only the Kafka and Spark 3 modules on JDK 8+.</message>
                 </requireJavaVersion>
               </rules>
             </configuration>

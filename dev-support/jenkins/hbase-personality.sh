@@ -30,6 +30,17 @@ function personality_modules
   local extra=""
   local MODULES=("${CHANGED_MODULES[@]}")
 
+  # When spark4 modules are in the changed set, activate the spark4 profile
+  # so the full reactor (including hbase-spark-pushdown_2.13) is built.
+  # The maven-enforcer-plugin in the spark4 profile requires JDK 17+.
+  if [[ "${MODULES[*]}" =~ spark4 ]]; then
+    extra="${extra} -Pspark4"
+    if [[ "${JAVA_HOME}" != "/usr/local/openjdk-17" ]]; then
+      export JAVA_HOME=/usr/local/openjdk-17
+      export PATH="${JAVA_HOME}/bin:${PATH}"
+    fi
+  fi
+
   clear_personality_queue
 
   # Always to install at root.
