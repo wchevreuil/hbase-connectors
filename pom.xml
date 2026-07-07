@@ -215,6 +215,8 @@
     <spark-surefire.jdk17.flags/>
     <!-- spark4/hbase-spark-pushdown artifactId suffix; exclude is a no-op unless -Pspark4 -->
     <spark4.scala.binary.version>2.13</spark4.scala.binary.version>
+    <spark4.scalatest.version>3.2.17</spark4.scalatest.version>
+    <nashorn.version>15.4</nashorn.version>
   </properties>
   <dependencyManagement>
     <dependencies>
@@ -845,7 +847,7 @@
           <dependency>
             <groupId>org.openjdk.nashorn</groupId>
             <artifactId>nashorn-core</artifactId>
-            <version>15.4</version>
+            <version>${nashorn.version}</version>
           </dependency>
         </dependencies>
       </plugin>
