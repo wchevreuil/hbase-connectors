@@ -34,12 +34,6 @@ RUN wget -q https://github.com/adoptium/temurin17-binaries/releases/download/jdk
     tar -xzf /tmp/jdk17.tar.gz --strip-components=1 -C /usr/local/openjdk-17 && \
     rm /tmp/jdk17.tar.gz
 
-# Yetus xml check uses jrunscript (removed in JDK 14). Provide a wrapper so
-# it remains available when JAVA_HOME points to JDK 17.
-RUN printf '#!/bin/sh\nexec /usr/local/openjdk-8/bin/jrunscript "$@"\n' \
-      > /usr/local/openjdk-17/bin/jrunscript && \
-    chmod +x /usr/local/openjdk-17/bin/jrunscript
-
 ###
 # Avoid out of memory errors in builds
 ###
