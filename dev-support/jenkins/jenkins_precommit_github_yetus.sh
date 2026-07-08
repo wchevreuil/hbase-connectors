@@ -85,8 +85,7 @@ YETUS_ARGS+=("--brief-report-file=${PATCHDIR}/brief.txt")
 YETUS_ARGS+=("--console-report-file=${PATCHDIR}/console.txt")
 YETUS_ARGS+=("--html-report-file=${PATCHDIR}/report.html")
 # enable writing back to Github
-YETUS_ARGS+=("--github-password=${GITHUB_PASSWORD}")
-YETUS_ARGS+=("--github-user=${GITHUB_USER}")
+YETUS_ARGS+=("--github-token=${GITHUB_PASSWORD}")
 # auto-kill any surefire stragglers during unit test runs
 YETUS_ARGS+=("--reapermode=kill")
 # set relatively high limits for ASF machines

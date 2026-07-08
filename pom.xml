@@ -216,6 +216,7 @@
     <!-- spark4/hbase-spark-pushdown artifactId suffix; exclude is a no-op unless -Pspark4 -->
     <spark4.scala.binary.version>2.13</spark4.scala.binary.version>
     <spark4.scalatest.version>3.2.17</spark4.scalatest.version>
+    <spark4.scalatest.maven.plugin.version>2.2.0</spark4.scalatest.maven.plugin.version>
     <nashorn.version>15.4</nashorn.version>
   </properties>
   <dependencyManagement>
