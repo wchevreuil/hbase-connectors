@@ -403,10 +403,6 @@ function spotless_rebuild
     return 0
   fi
 
-  if [[ "${repostatus}" = branch ]]; then
-    return 0
-  fi
-
   big_console_header "Checking spotless on ${repostatus}"
 
   start_clock
