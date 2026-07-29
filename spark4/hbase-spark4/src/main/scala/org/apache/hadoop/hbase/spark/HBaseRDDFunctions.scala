@@ -114,6 +114,7 @@ object HBaseRDDFunctions {
               null
             })
         .filter(_ != null)
+    }
 
     /**
      * Implicit method that gives easy access to HBaseContext's bulk
