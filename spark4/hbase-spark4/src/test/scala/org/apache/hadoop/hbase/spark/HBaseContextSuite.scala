@@ -399,16 +399,19 @@ class HBaseContextSuite extends AnyFunSuite with BeforeAndAfterAll with Logging 
       rdd,
       (it, conn) => {
         val tbl = conn.getTable(TableName.valueOf(tName))
-        val res = new ListBuffer[String]()
-        it.foreach { rowKey =>
-          val result = tbl.get(new Get(rowKey))
-          val cell = result.getColumnLatestCell(Bytes.toBytes(cf), Bytes.toBytes("a"))
-          if (cell != null) {
-            res += Bytes.toString(result.getRow) + "=" + Bytes.toString(CellUtil.cloneValue(cell))
+        try {
+          val res = new ListBuffer[String]()
+          it.foreach { rowKey =>
+            val result = tbl.get(new Get(rowKey))
+            val cell = result.getColumnLatestCell(Bytes.toBytes(cf), Bytes.toBytes("a"))
+            if (cell != null) {
+              res += Bytes.toString(result.getRow) + "=" + Bytes.toString(CellUtil.cloneValue(cell))
+            }
           }
+          res.iterator
+        } finally {
+          tbl.close()
         }
-        tbl.close()
-        res.iterator
       })
 
     val results = resultRdd.collect().sorted

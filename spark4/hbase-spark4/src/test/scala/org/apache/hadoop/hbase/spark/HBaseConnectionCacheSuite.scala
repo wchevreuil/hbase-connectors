@@ -167,15 +167,17 @@ class HBaseConnectionCacheSuite extends AnyFunSuite with Logging {
 
     HBaseConnectionCache.setTimeout(500)
     val threads: Array[Thread] = new Array[Thread](100)
-    for (i <- 0 to 99) {
-      threads.update(i, new Thread(new TestThread()))
-      threads(i).run()
-    }
-    try {
-      threads.foreach { x => x.join() }
-    } catch {
-      case e: InterruptedException => println(e.getMessage)
-    }
+for (i <- 0 to 99) {
+  threads.update(i, new Thread(new TestThread()))
+  threads(i).start()
+}
+try {
+  threads.foreach { x => x.join() }
+} catch {
+  case e: InterruptedException =>
+    Thread.currentThread().interrupt()
+    throw e
+}
 
     Thread.sleep(1000)
     HBaseConnectionCache.connectionMap.synchronized {

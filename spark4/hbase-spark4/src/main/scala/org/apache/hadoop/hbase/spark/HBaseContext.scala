@@ -115,9 +115,12 @@ class HBaseContext(@transient val sc: SparkContext, @transient val config: Confi
           it,
           (iterator, connection) => {
             val m = connection.getBufferedMutator(TableName.valueOf(tName))
-            iterator.foreach(T => m.mutate(f(T)))
-            m.flush()
-            m.close()
+            try {
+              iterator.foreach(t => m.mutate(f(t)))
+              m.flush()
+            } finally {
+              m.close()
+            }
           }))
   }
 
@@ -267,10 +270,13 @@ class HBaseContext(@transient val sc: SparkContext, @transient val config: Confi
 
     val config = getConf(configBroadcast)
     val smartConn = HBaseConnectionCache.getConnection(config)
+    if (smartConn == null) {
+      throw new IllegalStateException("HBaseConnectionCache is closed")
+    }
     try {
       f(it, smartConn.connection)
     } finally {
-      if (smartConn != null) smartConn.close()
+      smartConn.close()
     }
   }
 
@@ -302,20 +308,22 @@ class HBaseContext(@transient val sc: SparkContext, @transient val config: Confi
           it,
           (iterator, connection) => {
             val table = connection.getTable(TableName.valueOf(tName))
-            val mutationList = new java.util.ArrayList[Mutation]
-            iterator.foreach(
-              T => {
-                mutationList.add(f(T))
+            try {
+              val mutationList = new java.util.ArrayList[Mutation]()
+              iterator.foreach { t =>
+                mutationList.add(f(t))
                 if (mutationList.size >= batchSize) {
                   table.batch(mutationList, null)
                   mutationList.clear()
                 }
-              })
-            if (mutationList.size() > 0) {
-              table.batch(mutationList, null)
-              mutationList.clear()
+              }
+              if (mutationList.size() > 0) {
+                table.batch(mutationList, null)
+                mutationList.clear()
+              }
+            } finally {
+              table.close()
             }
-            table.close()
           }))
   }
 
@@ -330,26 +338,29 @@ class HBaseContext(@transient val sc: SparkContext, @transient val config: Confi
 
     def run(iterator: Iterator[T], connection: Connection): Iterator[U] = {
       val table = connection.getTable(TableName.valueOf(tName))
+      try {
+        val gets = new java.util.ArrayList[Get]()
+        val res = new scala.collection.mutable.ArrayBuffer[U]()
 
-      val gets = new java.util.ArrayList[Get]()
-      var res = List[U]()
+        while (iterator.hasNext) {
+          gets.add(makeGet(iterator.next()))
+          if (gets.size() == batchSize) {
+            val results = table.get(gets)
+            res ++= results.iterator.map(convertResult)
+            gets.clear()
+          }
+        }
 
-      while (iterator.hasNext) {
-        gets.add(makeGet(iterator.next()))
-
-        if (gets.size() == batchSize) {
+        if (gets.size() > 0) {
           val results = table.get(gets)
-          res = res ++ results.map(convertResult)
+          res ++= results.iterator.map(convertResult)
           gets.clear()
         }
+
+        res.iterator
+      } finally {
+        table.close()
       }
-      if (gets.size() > 0) {
-        val results = table.get(gets)
-        res = res ++ results.map(convertResult)
-        gets.clear()
-      }
-      table.close()
-      res.iterator
     }
   }
 

@@ -101,18 +101,19 @@ object HBaseRDDFunctions {
         tableName: TableName,
         batchSize: Int,
         f: (T) => Get): RDD[(ImmutableBytesWritable, Result)] = {
-      hc.bulkGet[T, (ImmutableBytesWritable, Result)](
-        tableName,
-        batchSize,
-        rdd,
-        f,
-        result =>
-          if (result != null && result.getRow != null) {
-            (new ImmutableBytesWritable(result.getRow), result)
-          } else {
-            null
-          })
-    }
+      hc
+        .bulkGet[T, (ImmutableBytesWritable, Result)](
+          tableName,
+          batchSize,
+          rdd,
+          f,
+          result =>
+            if (result != null && result.getRow != null) {
+              (new ImmutableBytesWritable(result.getRow), result)
+            } else {
+              null
+            })
+        .filter(_ != null)
 
     /**
      * Implicit method that gives easy access to HBaseContext's bulk
