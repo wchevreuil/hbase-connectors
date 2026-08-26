@@ -16,26 +16,9 @@
  * limitations under the License.
  */
 package org.apache.hadoop.hbase.spark.datasources
-/*
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
 
 import org.apache.hadoop.hbase.spark.Logging
 import org.apache.hadoop.hbase.spark.datasources.JavaBytesEncoder.JavaBytesEncoder
-import org.apache.hadoop.hbase.spark.hbase._
 import org.apache.hadoop.hbase.util.Bytes
 import org.apache.spark.sql.types._
 import org.apache.spark.unsafe.types.UTF8String
@@ -55,16 +38,16 @@ class NaiveEncoder extends BytesEncoder with Logging {
     code += 1
     (code - 1).asInstanceOf[Byte]
   }
-  val BooleanEnc = nextCode
-  val ShortEnc = nextCode
-  val IntEnc = nextCode
-  val LongEnc = nextCode
-  val FloatEnc = nextCode
-  val DoubleEnc = nextCode
-  val StringEnc = nextCode
-  val BinaryEnc = nextCode
-  val TimestampEnc = nextCode
-  val UnknownEnc = nextCode
+  val BooleanEnc: Byte = nextCode
+  val ShortEnc: Byte = nextCode
+  val IntEnc: Byte = nextCode
+  val LongEnc: Byte = nextCode
+  val FloatEnc: Byte = nextCode
+  val DoubleEnc: Byte = nextCode
+  val StringEnc: Byte = nextCode
+  val BinaryEnc: Byte = nextCode
+  val TimestampEnc: Byte = nextCode
+  val UnknownEnc: Byte = nextCode
 
   /**
    * Evaluate the java primitive type and return the BoundRanges. For one value, it may have
@@ -79,7 +62,7 @@ class NaiveEncoder extends BytesEncoder with Logging {
    * But the order of negative number is the reverse order of byte array. Please refer to IEEE-754
    * and https://en.wikipedia.org/wiki/Single-precision_floating-point_format
    */
-  def ranges(in: Any): Option[BoundRanges] = in match {
+  override def ranges(in: Any): Option[BoundRanges] = in match {
     case a: Integer =>
       val b = Bytes.toBytes(a)
       if (a >= 0) {
@@ -203,8 +186,8 @@ class NaiveEncoder extends BytesEncoder with Logging {
    * encode the data type into byte array. Note that it is a naive implementation with the
    * data type byte appending to the head of the serialized byte array.
    *
-   * @param dt: The data type of the input
-   * @param value: the value of the input
+   * @param dt    : The data type of the input
+   * @param value : the value of the input
    * @return the byte array with the first byte indicating the data type.
    */
   override def encode(dt: DataType, value: Any): Array[Byte] = {
@@ -213,8 +196,8 @@ class NaiveEncoder extends BytesEncoder with Logging {
         val result = new Array[Byte](Bytes.SIZEOF_BOOLEAN + 1)
         result(0) = BooleanEnc
         value.asInstanceOf[Boolean] match {
-          case true => result(1) = -1: Byte
-          case false => result(1) = 0: Byte
+          case true => result(1) = (-1: Byte)
+          case false => result(1) = (0: Byte)
         }
         result
       case ShortType =>
@@ -293,8 +276,6 @@ class NaiveEncoder extends BytesEncoder with Logging {
         val value = Bytes.toDouble(filterBytes, offset2 + 1)
         compare(in.compareTo(value), ops)
       case _ =>
-        // for String, Byte, Binary, Boolean and other types
-        // we can use the order of byte array directly.
         compare(
           Bytes.compareTo(input, offset1, length1, filterBytes, offset2 + 1, length2 - 1),
           ops)
