@@ -25,6 +25,14 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap
 import org.apache.yetus.audience.InterfaceAudience
 import scala.jdk.CollectionConverters._
 
+/**
+ * This is a new class in the spark4 module. Implements Table and SupportsRead (TODO: modify once write ops are added).
+ * Represents the HBase table as a Spark entity. Declares its schema (from the catalog) and capabilities (BATCH_READ).
+ * When Spark wants to read, it calls newScanBuilder(). In the spark 3 DS V1 model,
+ * there was no separate "table" concept, BaseRelation bundled schema and read logic together.
+ * @param tableSchema
+ * @param properties
+ */
 @InterfaceAudience.Private
 class HBaseTable(tableSchema: StructType, properties: Map[String, String])
     extends Table

@@ -21,6 +21,18 @@ import org.apache.hadoop.hbase.util.Bytes
 import org.apache.yetus.audience.InterfaceAudience
 import scala.collection.mutable.ListBuffer
 
+/**
+ * This is a new class in the spark4 module. Wraps ScanRange and RowKeyFilter.
+ *
+ * Extracted from DefaultSource.scala in spark3 where it was an inner class. Handles merging scan ranges
+ * from row key predicates (union/intersect). Same logic, just in its own file now for clarity.
+ *
+ * @param upperBound
+ * @param isUpperBoundEqualTo
+ * @param lowerBound
+ * @param isLowerBoundEqualTo
+ */
+
 @InterfaceAudience.Private
 class ScanRange(
     var upperBound: Array[Byte],

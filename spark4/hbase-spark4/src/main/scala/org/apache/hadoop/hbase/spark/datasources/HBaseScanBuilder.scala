@@ -24,6 +24,20 @@ import org.apache.spark.sql.types.StructType
 import org.apache.yetus.audience.InterfaceAudience
 import scala.collection.mutable.ListBuffer
 
+/**
+ * This is a new class in the spark4 module.
+ * Implements ScanBuilder, SupportsPushDownFilters, and SupportsPushDownRequiredColumns.
+ * This is where Catalyst negotiates with the connector. Spark calls pushFilters() with
+ * candidate predicates and the builder accepts what it can handle and returns the rest.
+ * Spark calls pruneColumns() to say which columns it actually needs.
+ * Then build() produces the final scan plan.
+ *
+ * In the spark 3 V1 model, this negotiation happened implicitly via
+ * PrunedFilteredScan.buildScan(requiredColumns, filters) as a single method call with no back-and-forth.
+ *
+ * @param schema
+ * @param properties
+ */
 @InterfaceAudience.Private
 class HBaseScanBuilder(schema: StructType, properties: Map[String, String])
     extends ScanBuilder

@@ -17,6 +17,7 @@
  */
 package org.apache.hadoop.hbase.spark.datasources
 
+import org.apache.hadoop.fs.Path
 import org.apache.hadoop.hbase.{HBaseConfiguration, TableName}
 import org.apache.hadoop.hbase.spark.{HBaseConnectionCache, Logging}
 import org.apache.spark.sql.connector.read.{Batch, InputPartition, PartitionReaderFactory}
@@ -24,6 +25,21 @@ import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.StructType
 import org.apache.yetus.audience.InterfaceAudience
 
+/**
+ * This is a new class in the spark4 module. Implements Batch.
+ * Responsible for physical planning: splits the read into partitions.
+ * Calls RegionLocator.getStartEndKeys() to discover HBase regions,
+ * intersects them with the row key filter's scan ranges, and produces an array of InputPartition objects.
+ *
+ * In the spark 3 DS V1 model, this logic was inside HBaseTableScanRDD.getPartitions().
+ *
+ * @param requiredSchema
+ * @param properties
+ * @param catalog
+ * @param rowKeyFilter
+ * @param pushedFilters
+ * @param encoderClsName
+ */
 @InterfaceAudience.Private
 class HBaseBatch(
     requiredSchema: StructType,
@@ -38,7 +54,7 @@ class HBaseBatch(
   override def planInputPartitions(): Array[InputPartition] = {
     val conf = HBaseConfiguration.create()
     val configResources = properties.get(HBaseSparkConf.HBASE_CONFIG_LOCATION)
-    configResources.foreach(_.split(",").foreach(r => conf.addResource(r)))
+    configResources.foreach(_.split(",").foreach(r => conf.addResource(new Path(r))))
 
     val connection = HBaseConnectionCache.getConnection(conf)
     try {

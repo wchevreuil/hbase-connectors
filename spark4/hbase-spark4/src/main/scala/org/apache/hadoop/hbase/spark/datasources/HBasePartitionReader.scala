@@ -17,6 +17,7 @@
  */
 package org.apache.hadoop.hbase.spark.datasources
 
+import org.apache.hadoop.fs.Path
 import org.apache.hadoop.hbase.{CellUtil, HBaseConfiguration, TableName}
 import org.apache.hadoop.hbase.client.{Result, ResultScanner, Scan}
 import org.apache.hadoop.hbase.spark.{AndLogicExpression, DynamicLogicExpression,
@@ -35,6 +36,23 @@ import org.apache.yetus.audience.InterfaceAudience
 import scala.collection.mutable.ListBuffer
 import scala.jdk.CollectionConverters._
 
+/**
+ * This is a new class in the spark4 module. Extends PartitionReader[InternalRow] for reading data from HBase regions.
+ * The actual execution: opens an HBase scanner on the partition's range, attaches the SparkSQLPushDownFilter,
+ * reads Result objects, and converts them to InternalRow. Implements next()/get()/close().
+ *
+ *
+ * In the spark 3 DS V1 model, this logic was inside DefaultSource.buildScan()
+ * which returned an RDD[Row] with its own compute() method.
+ *
+ * @param partition
+ * @param requiredSchema
+ * @param properties
+ * @param catalog
+ * @param pushedFilters
+ * @param encoderClsName
+ * @param usePushDownColumnFilter
+ */
 @InterfaceAudience.Private
 class HBasePartitionReader(
     partition: HBaseInputPartition,
@@ -49,7 +67,7 @@ class HBasePartitionReader(
 
   private val conf = HBaseConfiguration.create()
   private val configResources = properties.get(HBaseSparkConf.HBASE_CONFIG_LOCATION)
-  configResources.foreach(_.split(",").foreach(r => conf.addResource(r)))
+  configResources.foreach(_.split(",").foreach(r => conf.addResource(new Path(r))))
 
   private val connection: SmartConnection = HBaseConnectionCache.getConnection(conf)
   private val tableName = s"${catalog.namespace}:${catalog.name}"
@@ -90,7 +108,8 @@ class HBasePartitionReader(
       val valueArray = buildValueArray()
       val dynamicLogicExpression = buildDynamicLogicExpression()
       if (dynamicLogicExpression != null) {
-        val columnMappings = scanFields.map { field =>
+        val allFilterFields = (requiredFields ++ filterFields).distinct
+        val columnMappings = allFilterFields.map { field =>
           new PushdownMappedField {
             override def colName(): String = field.colName
             override def cfBytes(): Array[Byte] = field.cfBytes
