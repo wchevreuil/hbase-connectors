@@ -24,6 +24,22 @@ import org.apache.spark.sql.types.StructType
 import org.apache.yetus.audience.InterfaceAudience
 import scala.collection.mutable.ListBuffer
 
+/**
+ * This is a new class in the spark4 module. Implements Scan.
+ *
+ * An immutable snapshot of the scan plan after negotiation is complete.
+ * Holds the pushed filters, required schema, and encoder.
+ * Builds the RowKeyFilter (for scan range narrowing from row key predicates) and produces the Batch.
+ *
+ * In the spark 3 V1 model, there was no separation between "plan" and "execution", the buildScan() method did both.
+ *
+ * @param requiredSchema
+ * @param properties
+ * @param catalog
+ * @param pushedFilters
+ * @param encoderClsName
+ * @param encoder
+ */
 @InterfaceAudience.Private
 class HBaseScan(
     requiredSchema: StructType,

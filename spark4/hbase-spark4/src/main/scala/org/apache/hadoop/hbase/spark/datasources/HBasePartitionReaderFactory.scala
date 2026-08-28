@@ -23,6 +23,20 @@ import org.apache.spark.sql.sources.Filter
 import org.apache.spark.sql.types.StructType
 import org.apache.yetus.audience.InterfaceAudience
 
+/**
+ * This is a new class in the spark4 module. Implements PartitionReaderFactory for
+ * creating HBasePartitionReader instances on executors.
+ *
+ * In the spark 3 DS V1 model, there was no factory, the RDD.compute(partition) call directly created the iterator.
+ *
+ *
+ * @param requiredSchema
+ * @param properties
+ * @param catalog
+ * @param pushedFilters
+ * @param encoderClsName
+ * @param usePushDownColumnFilter
+ */
 @InterfaceAudience.Private
 class HBasePartitionReaderFactory(
     requiredSchema: StructType,

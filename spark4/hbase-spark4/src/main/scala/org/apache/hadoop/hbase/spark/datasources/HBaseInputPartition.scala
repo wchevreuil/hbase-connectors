@@ -20,6 +20,14 @@ package org.apache.hadoop.hbase.spark.datasources
 import org.apache.spark.sql.connector.read.InputPartition
 import org.apache.yetus.audience.InterfaceAudience
 
+/**
+ * This is a new class in the spark4 module. Implements InputPartition for serialization of the partition
+ * information to be sent to executors. It's equivalent to the spark 3 DS V1 RDD.Partition.
+ *
+ * @param index
+ * @param startRow
+ * @param stopRow
+ */
 @InterfaceAudience.Private
 case class HBaseInputPartition(index: Int, startRow: Array[Byte], stopRow: Array[Byte])
     extends InputPartition
