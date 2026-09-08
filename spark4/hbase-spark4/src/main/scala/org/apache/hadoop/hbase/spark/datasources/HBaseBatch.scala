@@ -74,10 +74,8 @@ class HBaseBatch(
 
         if (scanRanges.isEmpty && points.isEmpty) {
           regions.map { region =>
-            HBaseInputPartition(
-              region.index,
-              region.start.orNull,
-              region.end.orNull): InputPartition
+            val fullRange = Range(region)
+            HBaseInputPartition(region.index, Seq(fullRange), Seq.empty): InputPartition
           }
         } else {
           regions.flatMap { region =>
@@ -90,15 +88,8 @@ class HBaseBatch(
             val intersectedPoints = Points.and(regionRange, points.toSeq)
 
             if (intersectedRanges.nonEmpty || intersectedPoints.nonEmpty) {
-              val startRow = intersectedRanges.headOption.flatMap(_.lower).map(_.b)
-                .orElse(intersectedPoints.headOption)
-                .orElse(region.start)
-                .orNull
-              val stopRow = intersectedRanges.lastOption.flatMap(_.upper).map(_.b)
-                .orElse(intersectedPoints.lastOption.map(Utils.incrementByteArray))
-                .orElse(region.end)
-                .orNull
-              Some(HBaseInputPartition(region.index, startRow, stopRow): InputPartition)
+              Some(HBaseInputPartition(
+                region.index, intersectedRanges, intersectedPoints): InputPartition)
             } else {
               None
             }

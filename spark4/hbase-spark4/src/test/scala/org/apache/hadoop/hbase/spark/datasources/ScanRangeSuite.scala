@@ -139,4 +139,24 @@ class ScanRangeSuite extends AnyFunSuite {
     assert(f.ranges.head.lowerBound.sameElements(new Array[Byte](0)))
     assert(f.ranges.head.upperBound == null)
   }
+
+  test("Ranges.and retains singleton range with both bounds inclusive") {
+    val region = Range(Some(Bound(new Array[Byte](0), true)), None)
+    val singleton = Range(
+      Some(Bound(toBytes("K"), true)),
+      Some(Bound(toBytes("K"), true)))
+    val result = Ranges.and(region, Seq(singleton))
+    assert(result.size == 1)
+    assert(result.head.lower.get.b.sameElements(toBytes("K")))
+    assert(result.head.upper.get.b.sameElements(toBytes("K")))
+  }
+
+  test("Ranges.and discards singleton range with exclusive bound") {
+    val region = Range(Some(Bound(new Array[Byte](0), true)), None)
+    val exclusive = Range(
+      Some(Bound(toBytes("K"), true)),
+      Some(Bound(toBytes("K"), false)))
+    val result = Ranges.and(region, Seq(exclusive))
+    assert(result.isEmpty)
+  }
 }

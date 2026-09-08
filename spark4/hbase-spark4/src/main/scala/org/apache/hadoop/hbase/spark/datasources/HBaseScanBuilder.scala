@@ -54,21 +54,36 @@ class HBaseScanBuilder(schema: StructType, properties: Map[String, String])
   private var requiredSchema: StructType = schema
 
   override def pushFilters(filters: Array[Filter]): Array[Filter] = {
+    val usePushDown = properties
+      .get(HBaseSparkConf.PUSHDOWN_COLUMN_FILTER)
+      .map(_.toBoolean)
+      .getOrElse(HBaseSparkConf.DEFAULT_PUSHDOWN_COLUMN_FILTER)
+
+    if (!usePushDown) {
+      _pushedFilters = Array.empty
+      return filters
+    }
+
+    def isSupported(f: Filter): Boolean = f match {
+      case EqualTo(attr, _) => catalog.sMap.map.contains(attr)
+      case LessThan(attr, _) => catalog.sMap.map.contains(attr)
+      case GreaterThan(attr, _) => catalog.sMap.map.contains(attr)
+      case LessThanOrEqual(attr, _) => catalog.sMap.map.contains(attr)
+      case GreaterThanOrEqual(attr, _) => catalog.sMap.map.contains(attr)
+      case StringStartsWith(attr, _) => catalog.sMap.map.contains(attr)
+      case IsNull(attr) => catalog.sMap.map.contains(attr)
+      case IsNotNull(attr) => catalog.sMap.map.contains(attr)
+      case Or(left, right) => isSupported(left) && isSupported(right)
+      case And(left, right) => isSupported(left) && isSupported(right)
+      case _ => false
+    }
+
     val supported = new ListBuffer[Filter]()
     val unsupported = new ListBuffer[Filter]()
 
-    filters.foreach {
-      case f @ EqualTo(attr, _) if catalog.sMap.map.contains(attr) => supported += f
-      case f @ LessThan(attr, _) if catalog.sMap.map.contains(attr) => supported += f
-      case f @ GreaterThan(attr, _) if catalog.sMap.map.contains(attr) => supported += f
-      case f @ LessThanOrEqual(attr, _) if catalog.sMap.map.contains(attr) => supported += f
-      case f @ GreaterThanOrEqual(attr, _) if catalog.sMap.map.contains(attr) => supported += f
-      case f @ StringStartsWith(attr, _) if catalog.sMap.map.contains(attr) => supported += f
-      case f @ IsNull(attr) if catalog.sMap.map.contains(attr) => supported += f
-      case f @ IsNotNull(attr) if catalog.sMap.map.contains(attr) => supported += f
-      case f @ Or(_, _) => supported += f
-      case f @ And(_, _) => supported += f
-      case f => unsupported += f
+    filters.foreach { f =>
+      if (isSupported(f)) supported += f
+      else unsupported += f
     }
 
     _pushedFilters = supported.toArray

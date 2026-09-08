@@ -22,12 +22,14 @@ import org.apache.yetus.audience.InterfaceAudience
 
 /**
  * This is a new class in the spark4 module. Implements InputPartition for serialization of the partition
- * information to be sent to executors. It's equivalent to the spark 3 DS V1 RDD.Partition.
+ * information to be sent to executors.
  *
- * @param index
- * @param startRow
- * @param stopRow
+ * Ranges are executed as HBase Scan operations; points as batched Get operations.
+ * This mirrors the spark3 HBaseScanPartition behavior.
  */
 @InterfaceAudience.Private
-case class HBaseInputPartition(index: Int, startRow: Array[Byte], stopRow: Array[Byte])
+case class HBaseInputPartition(
+    index: Int,
+    scanRanges: Seq[Range],
+    points: Seq[Array[Byte]])
     extends InputPartition

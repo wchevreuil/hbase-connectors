@@ -85,7 +85,7 @@ object Ranges {
             .getOrElse(-1)
         }
         .getOrElse(-1)
-      if (c < 0) {
+      if (c < 0 || (c == 0 && lower.exists(_.inc) && upper.exists(_.inc))) {
         Some(Range(lower, upper))
       } else {
         None

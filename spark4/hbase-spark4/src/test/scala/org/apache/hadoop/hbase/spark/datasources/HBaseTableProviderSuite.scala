@@ -144,6 +144,17 @@ class HBaseTableProviderSuite extends AnyFunSuite with BeforeAndAfterAll with Lo
     assert(df.count() == 5)
   }
 
+  test("filter with inclusive row key range includes upper bound") {
+    val df = loadTable().filter("key >= 'row005' AND key <= 'row010'")
+    assert(df.count() == 6)
+  }
+
+  test("filter with row key GTE AND LTE on same value returns one row") {
+    val df = loadTable().filter("key >= 'row010' AND key <= 'row010'")
+    assert(df.count() == 1)
+    assert(df.first().getAs[String]("name") == "Name10")
+  }
+
   test("count with filter on non-output columns") {
     val df = loadTable().filter("name = 'Name3' AND age = '23'")
     assert(df.count() == 1)
@@ -169,5 +180,14 @@ class HBaseTableProviderSuite extends AnyFunSuite with BeforeAndAfterAll with Lo
   test("empty result for non-matching filter") {
     val df = loadTable().filter("name = 'NonExistent'")
     assert(df.count() == 0)
+  }
+
+  test("short name 'hbase' alias resolves via ServiceLoader") {
+    val df = spark.read
+      .format("hbase")
+      .option("catalog", catalog)
+      .option(HBaseSparkConf.HBASE_CONFIG_LOCATION, configFile.getAbsolutePath)
+      .load()
+    assert(df.count() == numRows)
   }
 }

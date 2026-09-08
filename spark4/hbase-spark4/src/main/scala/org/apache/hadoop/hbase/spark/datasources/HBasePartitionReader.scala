@@ -17,9 +17,10 @@
  */
 package org.apache.hadoop.hbase.spark.datasources
 
+import java.util.ArrayList
 import org.apache.hadoop.fs.Path
 import org.apache.hadoop.hbase.{CellUtil, HBaseConfiguration, TableName}
-import org.apache.hadoop.hbase.client.{Result, ResultScanner, Scan}
+import org.apache.hadoop.hbase.client.{Get, Query, Result, ResultScanner, Scan, Table}
 import org.apache.hadoop.hbase.spark.{AndLogicExpression, DynamicLogicExpression,
   EqualLogicExpression, GreaterThanLogicExpression, GreaterThanOrEqualLogicExpression,
   HBaseConnectionCache, IsNullLogicExpression, LessThanLogicExpression,
@@ -28,6 +29,8 @@ import org.apache.hadoop.hbase.spark.{AndLogicExpression, DynamicLogicExpression
 import org.apache.hadoop.hbase.util.Bytes
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow
+import org.apache.spark.sql.catalyst.util.DateTimeUtils
+import org.apache.spark.sql.types.Decimal
 import org.apache.spark.sql.connector.read.PartitionReader
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types._
@@ -45,13 +48,8 @@ import scala.jdk.CollectionConverters._
  * In the spark 3 DS V1 model, this logic was inside DefaultSource.buildScan()
  * which returned an RDD[Row] with its own compute() method.
  *
- * @param partition
- * @param requiredSchema
- * @param properties
- * @param catalog
- * @param pushedFilters
- * @param encoderClsName
- * @param usePushDownColumnFilter
+ * Ranges are executed as Scan operations, whilst points are executed as batched Get operations. This mirrors the spark3
+ * HBaseTableScanRDD.compute() behavior.
  */
 @InterfaceAudience.Private
 class HBasePartitionReader(
@@ -71,74 +69,53 @@ class HBasePartitionReader(
 
   private val connection: SmartConnection = HBaseConnectionCache.getConnection(conf)
   private val tableName = s"${catalog.namespace}:${catalog.name}"
-  private val table = connection.getTable(TableName.valueOf(tableName))
+  private val table: Table = connection.getTable(TableName.valueOf(tableName))
 
-  private val scanner: ResultScanner = {
-    val scan = new Scan()
+  private val requiredFields = requiredSchema.fieldNames.map(catalog.sMap.getField(_))
+  private val filterFields = extractFilterFields(pushedFilters)
+  private val scanFields = (requiredFields ++ filterFields).distinct.filterNot(_.isRowKey)
+  private val pushDownFilter: Option[SparkSQLPushDownFilter] = buildPushDownFilter()
 
-    if (partition.startRow != null && partition.startRow.nonEmpty) {
-      scan.withStartRow(partition.startRow)
+  private val bulkGetSize = properties
+    .get(HBaseSparkConf.BULKGET_SIZE)
+    .map(_.toInt)
+    .getOrElse(HBaseSparkConf.DEFAULT_BULKGET_SIZE)
+
+  private val blockCacheEnable = properties
+    .get(HBaseSparkConf.QUERY_CACHEBLOCKS)
+    .map(_.toBoolean)
+    .getOrElse(HBaseSparkConf.DEFAULT_QUERY_CACHEBLOCKS)
+
+  private val scanners = new ListBuffer[ResultScanner]()
+
+  private val resultIterator: Iterator[Result] = {
+    val scanIterators = partition.scanRanges.map { range =>
+      val scanner = buildScanner(range)
+      scanners += scanner
+      scannerToIterator(scanner)
     }
-    if (partition.stopRow != null && partition.stopRow.nonEmpty) {
-      scan.withStopRow(partition.stopRow)
+    val getIterator = if (partition.points.nonEmpty) {
+      buildGets(partition.points)
+    } else {
+      Iterator.empty
     }
-
-    val blockCacheEnable = properties
-      .get(HBaseSparkConf.QUERY_CACHEBLOCKS)
-      .map(_.toBoolean)
-      .getOrElse(HBaseSparkConf.DEFAULT_QUERY_CACHEBLOCKS)
-    scan.setCacheBlocks(blockCacheEnable)
-
-    properties.get(HBaseSparkConf.QUERY_CACHEDROWS).map(_.toInt).foreach { rows =>
-      if (rows > 0) scan.setCaching(rows)
-    }
-    properties.get(HBaseSparkConf.QUERY_BATCHSIZE).map(_.toInt).foreach { batch =>
-      if (batch > 0) scan.setBatch(batch)
-    }
-
-    val requiredFields = requiredSchema.fieldNames.map(catalog.sMap.getField(_))
-    val filterFields = extractFilterFields(pushedFilters)
-    val scanFields = (requiredFields ++ filterFields).distinct.filterNot(_.isRowKey)
-
-    scanFields.foreach { f =>
-      scan.addColumn(f.cfBytes, f.colBytes)
-    }
-
-    if (usePushDownColumnFilter && pushedFilters.nonEmpty) {
-      val valueArray = buildValueArray()
-      val dynamicLogicExpression = buildDynamicLogicExpression()
-      if (dynamicLogicExpression != null) {
-        val allFilterFields = (requiredFields ++ filterFields).distinct
-        val columnMappings = allFilterFields.map { field =>
-          new PushdownMappedField {
-            override def colName(): String = field.colName
-            override def cfBytes(): Array[Byte] = field.cfBytes
-            override def colBytes(): Array[Byte] = field.colBytes
-          }
-        }
-        val pushDownFilter = new SparkSQLPushDownFilter(
-          dynamicLogicExpression,
-          valueArray,
-          columnMappings.toList.asJava,
-          encoderClsName)
-        scan.setFilter(pushDownFilter)
-      }
-    }
-
-    table.getScanner(scan)
+    scanIterators.foldLeft(Iterator.empty: Iterator[Result])(_ ++ _) ++ getIterator
   }
 
   private var currentResult: Result = _
 
   override def next(): Boolean = {
-    currentResult = scanner.next()
-    currentResult != null
+    if (resultIterator.hasNext) {
+      currentResult = resultIterator.next()
+      true
+    } else {
+      false
+    }
   }
 
   override def get(): InternalRow = {
     val fields = requiredSchema.fieldNames.map(catalog.sMap.getField(_))
     val rowKey = currentResult.getRow
-    catalog.dynSetupRowKey(rowKey)
     val keyFields = catalog.getRowKey
 
     val keyValues = parseRowKey(rowKey, keyFields)
@@ -166,15 +143,142 @@ class HBasePartitionReader(
   }
 
   override def close(): Unit = {
-    if (scanner != null) scanner.close()
+    scanners.foreach(s => if (s != null) s.close())
     if (table != null) table.close()
     if (connection != null) connection.close()
+  }
+
+  private def setStopRow(scan: Scan, bound: Bound): Scan = {
+    if (bound.inc) {
+      val incremented = Utils.incrementByteArray(bound.b)
+      if (incremented != null) scan.withStopRow(incremented)
+      else scan
+    } else {
+      scan.withStopRow(bound.b)
+    }
+  }
+
+  private def buildScanner(range: Range): ResultScanner = {
+    val scan = (range.lower, range.upper) match {
+      case (Some(Bound(a, _)), Some(upper)) =>
+        setStopRow(new Scan().withStartRow(a), upper)
+      case (None, Some(upper)) =>
+        setStopRow(new Scan(), upper)
+      case (Some(Bound(a, _)), None) =>
+        new Scan().withStartRow(a)
+      case (None, None) =>
+        new Scan()
+    }
+
+    scan.setCacheBlocks(blockCacheEnable)
+    properties.get(HBaseSparkConf.QUERY_CACHEDROWS).map(_.toInt).foreach { rows =>
+      if (rows > 0) scan.setCaching(rows)
+    }
+    properties.get(HBaseSparkConf.QUERY_BATCHSIZE).map(_.toInt).foreach { batch =>
+      if (batch > 0) scan.setBatch(batch)
+    }
+    handleTimeSemantics(scan)
+
+    scanFields.foreach { f =>
+      scan.addColumn(f.cfBytes, f.colBytes)
+    }
+    pushDownFilter.foreach(scan.setFilter(_))
+
+    table.getScanner(scan)
+  }
+
+  private def buildGets(points: Seq[Array[Byte]]): Iterator[Result] = {
+    points.grouped(bulkGetSize).flatMap { batch =>
+      val gets = new ArrayList[Get](batch.size)
+      batch.foreach { point =>
+        val g = new Get(point)
+        handleTimeSemantics(g)
+        scanFields.foreach { f =>
+          g.addColumn(f.cfBytes, f.colBytes)
+        }
+        pushDownFilter.foreach(g.setFilter(_))
+        gets.add(g)
+      }
+      table.get(gets).toSeq.iterator.filter(r => r != null && !r.isEmpty)
+    }
+  }
+
+  private def scannerToIterator(scanner: ResultScanner): Iterator[Result] = {
+    new Iterator[Result] {
+      var cur: Option[Result] = None
+      override def hasNext: Boolean = {
+        if (cur.isEmpty) {
+          val r = scanner.next()
+          if (r != null) cur = Some(r)
+        }
+        cur.isDefined
+      }
+      override def next(): Result = {
+        hasNext
+        val ret = cur.get
+        cur = None
+        ret
+      }
+    }
+  }
+
+  private def handleTimeSemantics(query: Query): Unit = {
+    val timestamp = properties.get(HBaseSparkConf.TIMESTAMP).map(_.toLong)
+    val minTs = properties.get(HBaseSparkConf.TIMERANGE_START).map(_.toLong)
+    val maxTs = properties.get(HBaseSparkConf.TIMERANGE_END).map(_.toLong)
+    (query, timestamp, minTs, maxTs) match {
+      case (q: Scan, Some(ts), None, None) => q.setTimestamp(ts)
+      case (q: Get, Some(ts), None, None) => q.setTimestamp(ts)
+      case (q: Scan, None, Some(min), Some(max)) => q.setTimeRange(min, max)
+      case (q: Get, None, Some(min), Some(max)) => q.setTimeRange(min, max)
+      case (_, None, None, None) =>
+      case _ =>
+        throw new IllegalArgumentException(
+          "Invalid combination of timestamp/time range provided.")
+    }
+    val maxVersions = properties.get(HBaseSparkConf.MAX_VERSIONS).map(_.toInt)
+    maxVersions.foreach { mv =>
+      query match {
+        case q: Scan => q.readVersions(mv)
+        case q: Get => q.readVersions(mv)
+        case _ =>
+      }
+    }
+  }
+
+  private def buildPushDownFilter(): Option[SparkSQLPushDownFilter] = {
+    if (!usePushDownColumnFilter || pushedFilters.isEmpty) return None
+    val valueArray = buildValueArray()
+    val dynamicLogicExpression = buildDynamicLogicExpression()
+    if (dynamicLogicExpression == null) return None
+
+    val allFilterFields = (requiredFields ++ filterFields).distinct
+    val columnMappings = allFilterFields.map { field =>
+      new PushdownMappedField {
+        override def colName(): String = field.colName
+        override def cfBytes(): Array[Byte] = field.cfBytes
+        override def colBytes(): Array[Byte] = field.colBytes
+      }
+    }
+    Some(new SparkSQLPushDownFilter(
+      dynamicLogicExpression,
+      valueArray,
+      columnMappings.toList.asJava,
+      encoderClsName))
   }
 
   private def convertToInternalRow(value: Any, dataType: DataType): Any = {
     if (value == null) return null
     dataType match {
       case StringType => UTF8String.fromString(value.asInstanceOf[String])
+      case DateType =>
+        val d = value.asInstanceOf[java.sql.Date]
+        DateTimeUtils.fromJavaDate(d)
+      case TimestampType =>
+        val t = value.asInstanceOf[java.sql.Timestamp]
+        DateTimeUtils.fromJavaTimestamp(t)
+      case dt: DecimalType =>
+        Decimal(value.asInstanceOf[java.math.BigDecimal], dt.precision, dt.scale)
       case _ => value
     }
   }
