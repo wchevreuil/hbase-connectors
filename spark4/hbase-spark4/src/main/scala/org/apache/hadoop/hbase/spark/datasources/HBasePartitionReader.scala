@@ -113,15 +113,15 @@ class HBasePartitionReader(
     }
   }
 
+  private val keyFields = catalog.getRowKey
+
   override def get(): InternalRow = {
-    val fields = requiredSchema.fieldNames.map(catalog.sMap.getField(_))
     val rowKey = currentResult.getRow
-    val keyFields = catalog.getRowKey
 
     val keyValues = parseRowKey(rowKey, keyFields)
-    val values = new Array[Any](fields.length)
+    val values = new Array[Any](requiredFields.length)
 
-    fields.zipWithIndex.foreach { case (field, idx) =>
+    requiredFields.zipWithIndex.foreach { case (field, idx) =>
       if (field.isRowKey) {
         values(idx) = convertToInternalRow(keyValues.get(field).orNull, field.dt)
       } else {
@@ -300,7 +300,7 @@ class HBasePartitionReader(
                 (row.length + 1, parsed :+ (field, value))
               } else {
                 val value = Utils.hbaseFieldToScalaType(field, row, idx, pos - idx)
-                (pos, parsed :+ (field, value))
+                (pos + 1, parsed :+ (field, value))
               }
             case _ =>
               (
@@ -334,12 +334,15 @@ class HBasePartitionReader(
 
   private def buildValueArray(): Array[Array[Byte]] = {
     val values = new ListBuffer[Array[Byte]]()
-    pushedFilters.foreach(f => collectFilterValues(values, f))
+    val encoder = JavaBytesEncoder.create(encoderClsName)
+    pushedFilters.foreach(f => collectFilterValues(values, f, encoder))
     values.toArray
   }
 
-  private def collectFilterValues(values: ListBuffer[Array[Byte]], filter: Filter): Unit = {
-    val encoder = JavaBytesEncoder.create(encoderClsName)
+  private def collectFilterValues(
+      values: ListBuffer[Array[Byte]],
+      filter: Filter,
+      encoder: BytesEncoder): Unit = {
     filter match {
       case EqualTo(attr, value) =>
         val field = catalog.sMap.map.get(attr).orNull
@@ -360,11 +363,11 @@ class HBasePartitionReader(
         val field = catalog.sMap.map.get(attr).orNull
         if (field != null) values += Utils.toBytes(value, field)
       case Or(left, right) =>
-        collectFilterValues(values, left)
-        collectFilterValues(values, right)
+        collectFilterValues(values, left, encoder)
+        collectFilterValues(values, right, encoder)
       case And(left, right) =>
-        collectFilterValues(values, left)
-        collectFilterValues(values, right)
+        collectFilterValues(values, left, encoder)
+        collectFilterValues(values, right, encoder)
       case _ =>
     }
   }

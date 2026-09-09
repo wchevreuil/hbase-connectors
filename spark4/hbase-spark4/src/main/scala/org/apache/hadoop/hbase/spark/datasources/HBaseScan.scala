@@ -22,7 +22,6 @@ import org.apache.spark.sql.connector.read.{Batch, Scan}
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.StructType
 import org.apache.yetus.audience.InterfaceAudience
-import scala.collection.mutable.ListBuffer
 
 /**
  * This is a new class in the spark4 module. Implements Scan.
@@ -60,11 +59,10 @@ class HBaseScan(
 
   private def buildRowKeyFilter(): RowKeyFilter = {
     var superRowKeyFilter: RowKeyFilter = null
-    val queryValueList = new ListBuffer[Array[Byte]]
 
     pushedFilters.foreach { f =>
       val rowKeyFilter = new RowKeyFilter()
-      traverseFilterTree(rowKeyFilter, queryValueList, f)
+      traverseFilterTree(rowKeyFilter, f)
       if (superRowKeyFilter == null) {
         superRowKeyFilter = rowKeyFilter
       } else {
@@ -80,7 +78,6 @@ class HBaseScan(
 
   private def traverseFilterTree(
       parentRowKeyFilter: RowKeyFilter,
-      valueArray: ListBuffer[Array[Byte]],
       filter: Filter): Unit = {
     filter match {
       case EqualTo(attr, value) =>
@@ -138,14 +135,14 @@ class HBaseScan(
             new RowKeyFilter(null, new ScanRange(endRange, false, p, true)))
         }
       case Or(left, right) =>
-        traverseFilterTree(parentRowKeyFilter, valueArray, left)
+        traverseFilterTree(parentRowKeyFilter, left)
         val rightSideRowKeyFilter = new RowKeyFilter
-        traverseFilterTree(rightSideRowKeyFilter, valueArray, right)
+        traverseFilterTree(rightSideRowKeyFilter, right)
         parentRowKeyFilter.mergeUnion(rightSideRowKeyFilter)
       case And(left, right) =>
-        traverseFilterTree(parentRowKeyFilter, valueArray, left)
+        traverseFilterTree(parentRowKeyFilter, left)
         val rightSideRowKeyFilter = new RowKeyFilter
-        traverseFilterTree(rightSideRowKeyFilter, valueArray, right)
+        traverseFilterTree(rightSideRowKeyFilter, right)
         parentRowKeyFilter.mergeIntersect(rightSideRowKeyFilter)
       case _ =>
     }

@@ -61,8 +61,11 @@ class HBaseTableProviderSuite extends AnyFunSuite with BeforeAndAfterAll with Lo
     configFile = File.createTempFile("hbase-site", ".xml", tmpDir)
     configFile.deleteOnExit()
     val out = new FileOutputStream(configFile)
-    TEST_UTIL.getConfiguration.writeXml(out)
-    out.close()
+    try {
+      TEST_UTIL.getConfiguration.writeXml(out)
+    } finally {
+      out.close()
+    }
 
     spark = SparkSession.builder()
       .master("local[2]")

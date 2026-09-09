@@ -104,7 +104,10 @@ class ScanRange(
   }
 
   def hasOverlap(left: ScanRange, right: ScanRange): Boolean = {
-    compareRange(left.upperBound, right.lowerBound) >= 0
+    val cmp = compareRange(left.upperBound, right.lowerBound)
+    if (cmp > 0) true
+    else if (cmp == 0) left.isUpperBoundEqualTo && right.isLowerBoundEqualTo
+    else false
   }
 
   def compareRange(left: Array[Byte], right: Array[Byte]): Int = {
@@ -165,16 +168,10 @@ class RowKeyFilter(
       other.points.foreach(otherP => didntSurviveFirstPassPoints += otherP)
     } else {
       points.foreach { p =>
-        if (other.points.isEmpty) {
-          didntSurviveFirstPassPoints += p
+        if (other.points.exists(Bytes.equals(p, _))) {
+          survivingPoints += p
         } else {
-          other.points.foreach { otherP =>
-            if (Bytes.equals(p, otherP)) {
-              survivingPoints += p
-            } else {
-              didntSurviveFirstPassPoints += p
-            }
-          }
+          didntSurviveFirstPassPoints += p
         }
       }
     }
