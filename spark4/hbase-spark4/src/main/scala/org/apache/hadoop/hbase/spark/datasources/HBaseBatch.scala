@@ -20,6 +20,7 @@ package org.apache.hadoop.hbase.spark.datasources
 import org.apache.hadoop.fs.Path
 import org.apache.hadoop.hbase.{HBaseConfiguration, TableName}
 import org.apache.hadoop.hbase.spark.{HBaseConnectionCache, Logging}
+import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.connector.read.{Batch, InputPartition, PartitionReaderFactory}
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.StructType
@@ -52,7 +53,8 @@ class HBaseBatch(
     with Logging {
 
   override def planInputPartitions(): Array[InputPartition] = {
-    val conf = HBaseConfiguration.create()
+    val hadoopConf = SparkSession.active.sparkContext.hadoopConfiguration
+    val conf = HBaseConfiguration.create(hadoopConf)
     val configResources = properties.get(HBaseSparkConf.HBASE_CONFIG_LOCATION)
     configResources.foreach(_.split(",").foreach(r => conf.addResource(new Path(r))))
 
@@ -66,33 +68,27 @@ class HBaseBatch(
         val endKeys = keys.getSecond
 
         val regions = startKeys.zip(endKeys).zipWithIndex.map { case ((start, end), idx) =>
-          HBaseRegion(idx, Some(start), Some(end))
+          HBaseRegion(idx, Some(start), Some(end),
+            Some(regionLocator.getRegionLocation(start).getHostname))
         }
 
-        val scanRanges = rowKeyFilter.ranges.toSeq
+        val scanRanges = rowKeyFilter.ranges.toSeq.map { sr =>
+          Range(
+            Option(sr.lowerBound).filter(_.nonEmpty).map(Bound(_, sr.isLowerBoundEqualTo)),
+            Option(sr.upperBound).map(Bound(_, sr.isUpperBoundEqualTo)))
+        }
         val points = rowKeyFilter.points.toSeq
 
-        if (scanRanges.isEmpty && points.isEmpty) {
-          regions.map { region =>
-            val fullRange = Range(region)
-            HBaseInputPartition(region.index, Seq(fullRange), Seq.empty): InputPartition
-          }
-        } else {
-          regions.flatMap { region =>
-            val regionRange = Range(region)
-            val intersectedRanges = Ranges.and(regionRange, scanRanges.map { sr =>
-              Range(
-                Option(sr.lowerBound).filter(_.nonEmpty).map(Bound(_, sr.isLowerBoundEqualTo)),
-                Option(sr.upperBound).map(Bound(_, sr.isUpperBoundEqualTo)))
-            })
-            val intersectedPoints = Points.and(regionRange, points.toSeq)
+        regions.flatMap { region =>
+          val regionRange = Range(region)
+          val intersectedRanges = Ranges.and(regionRange, scanRanges)
+          val intersectedPoints = Points.and(regionRange, points)
 
-            if (intersectedRanges.nonEmpty || intersectedPoints.nonEmpty) {
-              Some(HBaseInputPartition(
-                region.index, intersectedRanges, intersectedPoints): InputPartition)
-            } else {
-              None
-            }
+          if (intersectedRanges.nonEmpty || intersectedPoints.nonEmpty) {
+            Some(HBaseInputPartition(
+              region.index, intersectedRanges, intersectedPoints, region.server): InputPartition)
+          } else {
+            None
           }
         }
       } finally {
@@ -109,12 +105,19 @@ class HBaseBatch(
       .map(_.toBoolean)
       .getOrElse(HBaseSparkConf.DEFAULT_PUSHDOWN_COLUMN_FILTER)
 
+    val hadoopConf = SparkSession.active.sparkContext.hadoopConfiguration
+    val hbaseConf = HBaseConfiguration.create(hadoopConf)
+    properties.get(HBaseSparkConf.HBASE_CONFIG_LOCATION)
+      .foreach(_.split(",").foreach(r => hbaseConf.addResource(new Path(r))))
+    val wrappedConf = new SerializableConfiguration(hbaseConf)
+
     new HBasePartitionReaderFactory(
       requiredSchema,
       properties,
       catalog,
       pushedFilters,
       encoderClsName,
-      usePushDownColumnFilter)
+      usePushDownColumnFilter,
+      wrappedConf)
   }
 }

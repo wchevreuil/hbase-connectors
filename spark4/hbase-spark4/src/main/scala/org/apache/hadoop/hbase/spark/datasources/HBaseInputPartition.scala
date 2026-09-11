@@ -31,5 +31,9 @@ import org.apache.yetus.audience.InterfaceAudience
 case class HBaseInputPartition(
     index: Int,
     scanRanges: Seq[Range],
-    points: Seq[Array[Byte]])
-    extends InputPartition
+    points: Seq[Array[Byte]],
+    serverHostname: Option[String] = None)
+    extends InputPartition {
+  override def preferredLocations(): Array[String] =
+    serverHostname.toArray
+}

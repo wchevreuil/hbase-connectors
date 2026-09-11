@@ -44,7 +44,8 @@ class HBasePartitionReaderFactory(
     catalog: HBaseTableCatalog,
     pushedFilters: Array[Filter],
     encoderClsName: String,
-    usePushDownColumnFilter: Boolean)
+    usePushDownColumnFilter: Boolean,
+    wrappedConf: SerializableConfiguration)
     extends PartitionReaderFactory
     with Serializable {
 
@@ -57,6 +58,7 @@ class HBasePartitionReaderFactory(
       catalog,
       pushedFilters,
       encoderClsName,
-      usePushDownColumnFilter)
+      usePushDownColumnFilter,
+      wrappedConf)
   }
 }

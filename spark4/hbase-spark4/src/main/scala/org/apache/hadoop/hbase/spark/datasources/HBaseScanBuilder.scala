@@ -64,18 +64,27 @@ class HBaseScanBuilder(schema: StructType, properties: Map[String, String])
       return filters
     }
 
+    val hasCompositeRowKey = catalog.getRowKey.size > 1
+
     def isSupported(f: Filter): Boolean = f match {
-      case EqualTo(attr, _) => catalog.sMap.map.contains(attr)
-      case LessThan(attr, _) => catalog.sMap.map.contains(attr)
-      case GreaterThan(attr, _) => catalog.sMap.map.contains(attr)
-      case LessThanOrEqual(attr, _) => catalog.sMap.map.contains(attr)
-      case GreaterThanOrEqual(attr, _) => catalog.sMap.map.contains(attr)
-      case StringStartsWith(attr, _) => catalog.sMap.map.contains(attr)
-      case IsNull(attr) => catalog.sMap.map.contains(attr)
-      case IsNotNull(attr) => catalog.sMap.map.contains(attr)
+      case EqualTo(attr, _) => isSupportedField(attr)
+      case LessThan(attr, _) => isSupportedField(attr)
+      case GreaterThan(attr, _) => isSupportedField(attr)
+      case LessThanOrEqual(attr, _) => isSupportedField(attr)
+      case GreaterThanOrEqual(attr, _) => isSupportedField(attr)
+      case StringStartsWith(attr, _) => isSupportedField(attr)
+      case IsNull(attr) => isSupportedField(attr)
+      case IsNotNull(attr) => isSupportedField(attr)
       case Or(left, right) => isSupported(left) && isSupported(right)
       case And(left, right) => isSupported(left) && isSupported(right)
       case _ => false
+    }
+
+    def isSupportedField(attr: String): Boolean = {
+      catalog.sMap.map.get(attr) match {
+        case Some(field) => !(hasCompositeRowKey && field.isRowKey)
+        case None => false
+      }
     }
 
     val supported = new ListBuffer[Filter]()

@@ -18,8 +18,7 @@
 package org.apache.hadoop.hbase.spark.datasources
 
 import java.util.ArrayList
-import org.apache.hadoop.fs.Path
-import org.apache.hadoop.hbase.{CellUtil, HBaseConfiguration, TableName}
+import org.apache.hadoop.hbase.{CellUtil, TableName}
 import org.apache.hadoop.hbase.client.{Get, Query, Result, ResultScanner, Scan, Table}
 import org.apache.hadoop.hbase.spark.{AndLogicExpression, DynamicLogicExpression,
   EqualLogicExpression, GreaterThanLogicExpression, GreaterThanOrEqualLogicExpression,
@@ -59,13 +58,12 @@ class HBasePartitionReader(
     catalog: HBaseTableCatalog,
     pushedFilters: Array[Filter],
     encoderClsName: String,
-    usePushDownColumnFilter: Boolean)
+    usePushDownColumnFilter: Boolean,
+    wrappedConf: SerializableConfiguration)
     extends PartitionReader[InternalRow]
     with Logging {
 
-  private val conf = HBaseConfiguration.create()
-  private val configResources = properties.get(HBaseSparkConf.HBASE_CONFIG_LOCATION)
-  configResources.foreach(_.split(",").foreach(r => conf.addResource(new Path(r))))
+  private val conf = wrappedConf.value
 
   private val connection: SmartConnection = HBaseConnectionCache.getConnection(conf)
   private val tableName = s"${catalog.namespace}:${catalog.name}"
@@ -74,6 +72,7 @@ class HBasePartitionReader(
   private val requiredFields = requiredSchema.fieldNames.map(catalog.sMap.getField(_))
   private val filterFields = extractFilterFields(pushedFilters)
   private val scanFields = (requiredFields ++ filterFields).distinct.filterNot(_.isRowKey)
+  private val hasNullCheck = pushedFilters.exists(containsNullCheck)
   private val pushDownFilter: Option[SparkSQLPushDownFilter] = buildPushDownFilter()
 
   private val bulkGetSize = properties
@@ -150,9 +149,9 @@ class HBasePartitionReader(
 
   private def setStopRow(scan: Scan, bound: Bound): Scan = {
     if (bound.inc) {
-      val incremented = Utils.incrementByteArray(bound.b)
-      if (incremented != null) scan.withStopRow(incremented)
-      else scan
+      val newArray = new Array[Byte](bound.b.length + 1)
+      System.arraycopy(bound.b, 0, newArray, 0, bound.b.length)
+      scan.withStopRow(newArray)
     } else {
       scan.withStopRow(bound.b)
     }
@@ -179,8 +178,10 @@ class HBasePartitionReader(
     }
     handleTimeSemantics(scan)
 
-    scanFields.foreach { f =>
-      scan.addColumn(f.cfBytes, f.colBytes)
+    if (!hasNullCheck) {
+      scanFields.foreach { f =>
+        scan.addColumn(f.cfBytes, f.colBytes)
+      }
     }
     pushDownFilter.foreach(scan.setFilter(_))
 
@@ -193,8 +194,10 @@ class HBasePartitionReader(
       batch.foreach { point =>
         val g = new Get(point)
         handleTimeSemantics(g)
-        scanFields.foreach { f =>
-          g.addColumn(f.cfBytes, f.colBytes)
+        if (!hasNullCheck) {
+          scanFields.foreach { f =>
+            g.addColumn(f.cfBytes, f.colBytes)
+          }
         }
         pushDownFilter.foreach(g.setFilter(_))
         gets.add(g)
@@ -420,5 +423,13 @@ class HBasePartitionReader(
       result = if (result == null) expr else new AndLogicExpression(result, expr)
     }
     result
+  }
+
+  private def containsNullCheck(f: Filter): Boolean = f match {
+    case IsNull(_) => true
+    case IsNotNull(_) => true
+    case And(left, right) => containsNullCheck(left) || containsNullCheck(right)
+    case Or(left, right) => containsNullCheck(left) || containsNullCheck(right)
+    case _ => false
   }
 }
