@@ -51,31 +51,31 @@ class HBaseScanBuilder(schema: StructType, properties: Map[String, String])
   @transient private val encoder = JavaBytesEncoder.create(encoderClsName)
 
   private var _pushedFilters: Array[Filter] = Array.empty
+  private var _rowKeyFilters: Array[Filter] = Array.empty
   private var requiredSchema: StructType = schema
 
   override def pushFilters(filters: Array[Filter]): Array[Filter] = {
-    val usePushDown = properties
-      .get(HBaseSparkConf.PUSHDOWN_COLUMN_FILTER)
-      .map(_.toBoolean)
-      .getOrElse(HBaseSparkConf.DEFAULT_PUSHDOWN_COLUMN_FILTER)
-
-    if (!usePushDown) {
-      _pushedFilters = Array.empty
-      return filters
-    }
+    val hasCompositeRowKey = catalog.getRowKey.size > 1
 
     def isSupported(f: Filter): Boolean = f match {
-      case EqualTo(attr, _) => catalog.sMap.map.contains(attr)
-      case LessThan(attr, _) => catalog.sMap.map.contains(attr)
-      case GreaterThan(attr, _) => catalog.sMap.map.contains(attr)
-      case LessThanOrEqual(attr, _) => catalog.sMap.map.contains(attr)
-      case GreaterThanOrEqual(attr, _) => catalog.sMap.map.contains(attr)
-      case StringStartsWith(attr, _) => catalog.sMap.map.contains(attr)
-      case IsNull(attr) => catalog.sMap.map.contains(attr)
-      case IsNotNull(attr) => catalog.sMap.map.contains(attr)
+      case EqualTo(attr, _) => isSupportedField(attr)
+      case LessThan(attr, _) => isSupportedField(attr)
+      case GreaterThan(attr, _) => isSupportedField(attr)
+      case LessThanOrEqual(attr, _) => isSupportedField(attr)
+      case GreaterThanOrEqual(attr, _) => isSupportedField(attr)
+      case StringStartsWith(attr, _) => isSupportedField(attr)
+      case IsNull(attr) => isSupportedField(attr)
+      case IsNotNull(attr) => isSupportedField(attr)
       case Or(left, right) => isSupported(left) && isSupported(right)
       case And(left, right) => isSupported(left) && isSupported(right)
       case _ => false
+    }
+
+    def isSupportedField(attr: String): Boolean = {
+      catalog.sMap.map.get(attr) match {
+        case Some(field) => !(hasCompositeRowKey && field.isRowKey)
+        case None => false
+      }
     }
 
     val supported = new ListBuffer[Filter]()
@@ -84,6 +84,18 @@ class HBaseScanBuilder(schema: StructType, properties: Map[String, String])
     filters.foreach { f =>
       if (isSupported(f)) supported += f
       else unsupported += f
+    }
+
+    _rowKeyFilters = supported.toArray
+
+    val usePushDown = properties
+      .get(HBaseSparkConf.PUSHDOWN_COLUMN_FILTER)
+      .map(_.toBoolean)
+      .getOrElse(HBaseSparkConf.DEFAULT_PUSHDOWN_COLUMN_FILTER)
+
+    if (!usePushDown) {
+      _pushedFilters = Array.empty
+      return filters
     }
 
     _pushedFilters = supported.toArray
@@ -97,6 +109,7 @@ class HBaseScanBuilder(schema: StructType, properties: Map[String, String])
   }
 
   override def build(): Scan = {
-    new HBaseScan(requiredSchema, properties, catalog, _pushedFilters, encoderClsName, encoder)
+    new HBaseScan(requiredSchema, properties, catalog, _pushedFilters, _rowKeyFilters,
+      encoderClsName, encoder)
   }
 }

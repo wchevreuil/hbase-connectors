@@ -35,6 +35,7 @@ class HBaseTableProviderSuite extends AnyFunSuite with BeforeAndAfterAll with Lo
   val tableName = "test_provider"
   val columnFamily = "cf"
   val numRows = 20
+  val numRowsWithoutName = 3
 
   val catalog: String = s"""{
     |"table":{"namespace":"default", "name":"$tableName"},
@@ -100,6 +101,16 @@ class HBaseTableProviderSuite extends AnyFunSuite with BeforeAndAfterAll with Lo
           Bytes.toBytes(s"${30000 + i * 1000}"))
         table.put(put)
       }
+      for (i <- 0 until numRowsWithoutName) {
+        val key = f"noname$i%03d"
+        val put = new Put(Bytes.toBytes(key))
+        put.addColumn(Bytes.toBytes(columnFamily), Bytes.toBytes("age"), Bytes.toBytes(s"${50 + i}"))
+        put.addColumn(
+          Bytes.toBytes(columnFamily),
+          Bytes.toBytes("salary"),
+          Bytes.toBytes(s"${60000 + i * 1000}"))
+        table.put(put)
+      }
     } finally {
       table.close()
       connection.close()
@@ -116,11 +127,11 @@ class HBaseTableProviderSuite extends AnyFunSuite with BeforeAndAfterAll with Lo
 
   test("full table scan returns all rows") {
     val df = loadTable()
-    assert(df.count() == numRows)
+    assert(df.count() == numRows + numRowsWithoutName)
   }
 
   test("select subset of columns") {
-    val df = loadTable().select("key", "name")
+    val df = loadTable().select("key", "name").filter("key LIKE 'row%'")
     assert(df.columns.length == 2)
     assert(df.count() == numRows)
     val firstRow = df.orderBy("key").first()
@@ -185,12 +196,24 @@ class HBaseTableProviderSuite extends AnyFunSuite with BeforeAndAfterAll with Lo
     assert(df.count() == 0)
   }
 
+  test("IS NULL filter returns rows missing the column") {
+    val df = loadTable().select("key").filter("name IS NULL")
+    assert(df.count() == numRowsWithoutName)
+    val keys = df.orderBy("key").collect().map(_.getString(0))
+    assert(keys.sameElements(Array("noname000", "noname001", "noname002")))
+  }
+
+  test("IS NOT NULL filter excludes rows missing the column") {
+    val df = loadTable().select("key").filter("name IS NOT NULL")
+    assert(df.count() == numRows)
+  }
+
   test("short name 'hbase' alias resolves via ServiceLoader") {
     val df = spark.read
       .format("hbase")
       .option("catalog", catalog)
       .option(HBaseSparkConf.HBASE_CONFIG_LOCATION, configFile.getAbsolutePath)
       .load()
-    assert(df.count() == numRows)
+    assert(df.count() == numRows + numRowsWithoutName)
   }
 }

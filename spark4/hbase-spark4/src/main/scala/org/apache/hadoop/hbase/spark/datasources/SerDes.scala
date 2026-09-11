@@ -21,7 +21,7 @@ import org.apache.hadoop.hbase.util.Bytes
 import org.apache.yetus.audience.InterfaceAudience
 
 @InterfaceAudience.Public
-trait SerDes {
+trait SerDes extends Serializable {
   def serialize(value: Any): Array[Byte]
   def deserialize(bytes: Array[Byte], start: Int, end: Int): Any
 }
