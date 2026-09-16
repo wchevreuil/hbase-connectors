@@ -17,19 +17,23 @@
  */
 package org.apache.hadoop.hbase.spark.datasources
 
-import org.apache.hadoop.hbase.util.Bytes
+import org.apache.spark.sql.connector.read.InputPartition
 import org.apache.yetus.audience.InterfaceAudience
 
-@InterfaceAudience.Public
-trait SerDes extends Serializable {
-  def serialize(value: Any): Array[Byte]
-  def deserialize(bytes: Array[Byte], start: Int, end: Int): Any
-}
-
+/**
+ * This is a new class in the spark4 module. Implements InputPartition for serialization of the partition
+ * information to be sent to executors.
+ *
+ * Ranges are executed as HBase Scan operations; points as batched Get operations.
+ * This mirrors the spark3 HBaseScanPartition behavior.
+ */
 @InterfaceAudience.Private
-class DoubleSerDes extends SerDes {
-  override def serialize(value: Any): Array[Byte] = Bytes.toBytes(value.asInstanceOf[Double])
-  override def deserialize(bytes: Array[Byte], start: Int, end: Int): Any = {
-    Bytes.toDouble(bytes, start)
-  }
+case class HBaseInputPartition(
+    index: Int,
+    scanRanges: Seq[Range],
+    points: Seq[Array[Byte]],
+    serverHostname: Option[String] = None)
+    extends InputPartition {
+  override def preferredLocations(): Array[String] =
+    serverHostname.toArray
 }
