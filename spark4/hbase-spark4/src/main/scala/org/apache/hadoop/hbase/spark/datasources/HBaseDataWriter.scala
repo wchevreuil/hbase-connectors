@@ -30,7 +30,7 @@ import org.apache.yetus.audience.InterfaceAudience
 /**
  * This is a new class in the spark4 module. Implements DataWriter[InternalRow] for the DS V2 write path.
  * Each instance handles one Spark partition on an executor. Converts InternalRow to HBase Put operations
- * and writes them via BufferedMutator for efficient client-side batching.
+ * and writes them via Table.put(List[Put]) with client-side batching.
  *
  * In the spark 3 DS V1 model, this logic was inside DefaultSource.insert() which used
  * rdd.map(convertToPut).saveAsHadoopDataset() with the old mapred TableOutputFormat.
@@ -111,6 +111,8 @@ class HBaseDataWriter(
 
   private def buildRowKey(record: InternalRow): Array[Byte] = {
     val rowBytes = rkIdxedFields.map { case (idx, field) =>
+      require(!record.isNullAt(idx),
+        s"Row key column '${field.colName}' must not be null")
       getValueBytes(record, idx, field)
     }
     val totalLen = rowBytes.foldLeft(0)(_ + _.length)
