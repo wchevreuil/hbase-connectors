@@ -61,6 +61,8 @@ class HBaseTableProviderSuite extends AnyFunSuite with BeforeAndAfterAll with Lo
     logInfo(s" - created table $tableName")
     TEST_UTIL.createTable(TableName.valueOf(writeTableName), Bytes.toBytes(columnFamily))
     logInfo(s" - created table $writeTableName")
+    TEST_UTIL.createTable(TableName.valueOf(streamTableName), Bytes.toBytes(columnFamily))
+    logInfo(s" - created table $streamTableName")
 
     populateTestData()
 
@@ -349,9 +351,6 @@ class HBaseTableProviderSuite extends AnyFunSuite with BeforeAndAfterAll with Lo
   test("streaming sink writes and reads back") {
     val ss = spark
     import ss.implicits._
-
-    TEST_UTIL.createTable(
-      TableName.valueOf(streamTableName), Bytes.toBytes(columnFamily))
 
     val checkpointDir = Files.createTempDirectory("hbase-stream-ckpt").toFile
     checkpointDir.deleteOnExit()

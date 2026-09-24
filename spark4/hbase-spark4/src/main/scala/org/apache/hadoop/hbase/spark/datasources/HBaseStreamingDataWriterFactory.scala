@@ -26,8 +26,11 @@ import org.apache.yetus.audience.InterfaceAudience
 /**
  * This is a new class in the spark4 module. Implements StreamingDataWriterFactory for the DS V2
  * streaming write path. Serialized to executors. Creates one HBaseDataWriter per Spark partition
- * per micro-batch epoch. The epochId is not used because HBase puts are idempotent — a retried
- * epoch writes the same rows with the same row keys, producing no duplicates.
+ * per micro-batch epoch.
+ *
+ * The epochId is not used because HBase puts are idempotent at the latest version, a retried
+ * epoch overwrites the cell with the same value, producing no duplicates. Note that the
+ * connector doesn't expose cell timestamps schema mapping, so multi-versioning is out of the scope.
  *
  * @param schema
  * @param properties
