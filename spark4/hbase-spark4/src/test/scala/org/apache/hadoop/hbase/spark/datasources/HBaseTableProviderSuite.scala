@@ -408,4 +408,151 @@ class HBaseTableProviderSuite extends AnyFunSuite with BeforeAndAfterAll with Lo
     assert(result.count() == 1)
     assert(result.first().getAs[String]("name") == "Heidi")
   }
+
+  test("streaming sink handles multiple micro-batches") {
+    val ss = spark
+    import ss.implicits._
+
+    val checkpointDir = Files.createTempDirectory("hbase-stream-multi-ckpt").toFile
+    checkpointDir.deleteOnExit()
+
+    implicit val sqlCtx = spark.sqlContext
+    val source = MemoryStream[(String, String, String)]
+
+    source.addData(("smulti000", "Ivy", "33"))
+
+    val query = source.toDF().toDF("key", "name", "age")
+      .writeStream
+      .format("org.apache.hadoop.hbase.spark.datasources.HBaseTableProvider")
+      .option("catalog", streamCatalog)
+      .option(HBaseSparkConf.HBASE_CONFIG_LOCATION, configFile.getAbsolutePath)
+      .option("checkpointLocation", checkpointDir.getAbsolutePath)
+      .trigger(Trigger.AvailableNow())
+      .start()
+
+    query.awaitTermination()
+
+    source.addData(("smulti001", "Jack", "29"), ("smulti002", "Kate", "36"))
+
+    val query2 = source.toDF().toDF("key", "name", "age")
+      .writeStream
+      .format("org.apache.hadoop.hbase.spark.datasources.HBaseTableProvider")
+      .option("catalog", streamCatalog)
+      .option(HBaseSparkConf.HBASE_CONFIG_LOCATION, configFile.getAbsolutePath)
+      .option("checkpointLocation", checkpointDir.getAbsolutePath)
+      .trigger(Trigger.AvailableNow())
+      .start()
+
+    query2.awaitTermination()
+
+    val result = loadStreamTable()
+      .filter("key LIKE 'smulti%'").orderBy("key").collect()
+    assert(result.length == 3)
+    assert(result(0).getAs[String]("name") == "Ivy")
+    assert(result(1).getAs[String]("name") == "Jack")
+    assert(result(2).getAs[String]("name") == "Kate")
+  }
+
+  test("streaming sink preserves null columns") {
+    val ss = spark
+    import ss.implicits._
+
+    val checkpointDir = Files.createTempDirectory("hbase-stream-null-ckpt").toFile
+    checkpointDir.deleteOnExit()
+
+    implicit val sqlCtx = spark.sqlContext
+    val source = MemoryStream[(String, String, String)]
+
+    source.addData(("snull000", null, "40"), ("snull001", "Leo", null))
+
+    val query = source.toDF().toDF("key", "name", "age")
+      .writeStream
+      .format("org.apache.hadoop.hbase.spark.datasources.HBaseTableProvider")
+      .option("catalog", streamCatalog)
+      .option(HBaseSparkConf.HBASE_CONFIG_LOCATION, configFile.getAbsolutePath)
+      .option("checkpointLocation", checkpointDir.getAbsolutePath)
+      .trigger(Trigger.AvailableNow())
+      .start()
+
+    query.awaitTermination()
+
+    val result = loadStreamTable()
+      .filter("key LIKE 'snull%'").orderBy("key").collect()
+    assert(result.length == 2)
+    assert(result(0).getAs[String]("key") == "snull000")
+    assert(result(0).getAs[String]("name") == null)
+    assert(result(0).getAs[String]("age") == "40")
+    assert(result(1).getAs[String]("key") == "snull001")
+    assert(result(1).getAs[String]("name") == "Leo")
+    assert(result(1).getAs[String]("age") == null)
+  }
+
+  test("streaming sink rejects null row key") {
+    val ss = spark
+    import ss.implicits._
+
+    val checkpointDir = Files.createTempDirectory("hbase-stream-nullkey-ckpt").toFile
+    checkpointDir.deleteOnExit()
+
+    implicit val sqlCtx = spark.sqlContext
+    val source = MemoryStream[(String, String, String)]
+
+    source.addData((null, "Mia", "25"))
+
+    val query = source.toDF().toDF("key", "name", "age")
+      .writeStream
+      .format("org.apache.hadoop.hbase.spark.datasources.HBaseTableProvider")
+      .option("catalog", streamCatalog)
+      .option(HBaseSparkConf.HBASE_CONFIG_LOCATION, configFile.getAbsolutePath)
+      .option("checkpointLocation", checkpointDir.getAbsolutePath)
+      .trigger(Trigger.AvailableNow())
+      .start()
+
+    val ex = intercept[Exception] {
+      query.awaitTermination()
+    }
+    assert(ex.getMessage != null)
+  }
+
+  test("streaming sink overwrites same row key across epochs") {
+    val ss = spark
+    import ss.implicits._
+
+    val checkpointDir = Files.createTempDirectory("hbase-stream-overwrite-ckpt").toFile
+    checkpointDir.deleteOnExit()
+
+    implicit val sqlCtx = spark.sqlContext
+    val source = MemoryStream[(String, String, String)]
+
+    source.addData(("sover000", "Nora", "30"))
+
+    val query = source.toDF().toDF("key", "name", "age")
+      .writeStream
+      .format("org.apache.hadoop.hbase.spark.datasources.HBaseTableProvider")
+      .option("catalog", streamCatalog)
+      .option(HBaseSparkConf.HBASE_CONFIG_LOCATION, configFile.getAbsolutePath)
+      .option("checkpointLocation", checkpointDir.getAbsolutePath)
+      .trigger(Trigger.AvailableNow())
+      .start()
+
+    query.awaitTermination()
+
+    source.addData(("sover000", "Nora-Updated", "31"))
+
+    val query2 = source.toDF().toDF("key", "name", "age")
+      .writeStream
+      .format("org.apache.hadoop.hbase.spark.datasources.HBaseTableProvider")
+      .option("catalog", streamCatalog)
+      .option(HBaseSparkConf.HBASE_CONFIG_LOCATION, configFile.getAbsolutePath)
+      .option("checkpointLocation", checkpointDir.getAbsolutePath)
+      .trigger(Trigger.AvailableNow())
+      .start()
+
+    query2.awaitTermination()
+
+    val result = loadStreamTable().filter("key = 'sover000'").collect()
+    assert(result.length == 1)
+    assert(result(0).getAs[String]("name") == "Nora-Updated")
+    assert(result(0).getAs[String]("age") == "31")
+  }
 }
