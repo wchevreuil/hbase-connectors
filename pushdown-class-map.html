@@ -1,0 +1,396 @@
+<title>Pushdown Module Class Map</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  /* Layout: single reading column; the diagram breaks out to a wider scrollable panel. */
+  :root {
+    --bg: #f6f7f9;
+    --surface: #ffffff;
+    --fg: #1b2230;
+    --muted: #5a6475;
+    --line: #d9dee6;
+    --accent: #b5481d;          /* HBase-ish orange, used sparingly */
+    --code-bg: #eef1f5;
+    --f-display: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+    --f-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --f-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #12161d; --surface: #1a2029; --fg: #e3e7ee; --muted: #9aa4b4;
+      --line: #2c3442; --accent: #f08a5d; --code-bg: #202733; color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #12161d; --surface: #1a2029; --fg: #e3e7ee; --muted: #9aa4b4;
+    --line: #2c3442; --accent: #f08a5d; --code-bg: #202733; color-scheme: dark;
+  }
+
+  body {
+    background: var(--bg); color: var(--fg);
+    font: 15px/1.6 var(--f-body);
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-block: 40px 64px;
+  }
+  .wrap { max-width: 1100px; margin: 0 auto; display: grid; gap: 32px; }
+  .prose { max-width: 68ch; display: grid; gap: 12px; }
+  h1, h2 { font-family: var(--f-display); font-weight: 600; text-wrap: balance; margin: 0; line-height: 1.15; }
+  h1 { font-size: 2rem; }
+  h2 { font-size: 1.25rem; }
+  p { margin: 0; }
+  .eyebrow {
+    font: 500 0.75rem/1 var(--f-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent);
+  }
+  code { font-family: var(--f-mono); font-size: 0.88em; background: var(--code-bg); padding: 1px 5px; border-radius: 4px; }
+  .muted { color: var(--muted); }
+
+  .diagram {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
+    overflow-x: auto; padding: 16px;
+  }
+  .diagram pre.mermaid { margin: 0; min-width: 900px; }
+
+  section { display: grid; gap: 14px; min-width: 0; }
+
+  .modules { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+  .module { border-top: 2px solid var(--line); padding-top: 10px; display: grid; gap: 6px; align-content: start; min-width: 0; }
+  .module.core { border-top-color: var(--accent); }
+  .module h3 { margin: 0; font: 600 0.95rem/1.3 var(--f-body); }
+  .module .path { font: 0.78rem/1.4 var(--f-mono); color: var(--muted); overflow-wrap: anywhere; }
+  .module ul { margin: 4px 0 0; padding-left: 18px; font-size: 0.9rem; }
+  .module li { margin: 2px 0; }
+
+  table.legend { border-collapse: collapse; font-size: 0.9rem; }
+  table.legend td { padding: 4px 16px 4px 0; vertical-align: top; }
+  table.legend td:first-child { font-family: var(--f-mono); white-space: nowrap; }
+
+  .note { border-left: 3px solid var(--accent); padding: 4px 0 4px 14px; max-width: 72ch; }
+
+  .src-head { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; }
+  button {
+    font: 500 0.85rem var(--f-body); color: var(--fg); background: var(--surface);
+    border: 1px solid var(--line); border-radius: 6px; padding: 6px 12px; cursor: pointer;
+  }
+  button:hover { border-color: var(--accent); }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  pre.src {
+    margin: 0; background: var(--code-bg); border-radius: 8px; padding: 14px 16px;
+    font: 0.8rem/1.5 var(--f-mono); overflow-x: auto; max-height: 420px;
+  }
+</style>
+
+<div class="wrap">
+  <header class="prose">
+    <span class="eyebrow">hbase-connectors · spark/hbase-spark-pushdown</span>
+    <h1>Pushdown module class map</h1>
+    <p>Classes in the shared pushdown module (methods omitted) and every main-code link from the
+      <code>spark</code> (Spark 3) and <code>spark4</code> connectors. <code>spark4/hbase-spark-pushdown</code>
+      has no sources of its own: its pom adds <code>spark/hbase-spark-pushdown/src/main/{java,scala}</code>
+      through build-helper and recompiles them for Scala 2.13. Both connectors therefore see the same classes.</p>
+  </header>
+
+  <div class="diagram">
+<pre class="mermaid">
+classDiagram
+  direction LR
+
+  namespace external {
+    class FilterBase { &lt;&lt;HBase&gt;&gt; }
+    class SparkFilterProtos { &lt;&lt;protobuf&gt;&gt; }
+  }
+
+  namespace pushdown {
+    class SparkSQLPushDownFilter
+    class PushdownMappedField { &lt;&lt;interface&gt;&gt; }
+    class ByteArrayComparable
+    class DynamicLogicExpression { &lt;&lt;trait&gt;&gt; }
+    class CompareTrait { &lt;&lt;trait&gt;&gt; }
+    class AndLogicExpression
+    class OrLogicExpression
+    class EqualLogicExpression
+    class StartsWithLogicExpression
+    class IsNullLogicExpression
+    class PassThroughLogicExpression
+    class GreaterThanLogicExpression
+    class GreaterThanOrEqualLogicExpression
+    class LessThanLogicExpression
+    class LessThanOrEqualLogicExpression
+    class DynamicLogicExpressionBuilder { &lt;&lt;object&gt;&gt; }
+    class BytesEncoder { &lt;&lt;trait&gt;&gt; }
+    class JavaBytesEncoder { &lt;&lt;Enumeration&gt;&gt; }
+    class BoundRanges { &lt;&lt;case class&gt;&gt; }
+    class BoundRange { &lt;&lt;case class&gt;&gt; }
+  }
+
+  namespace spark3 {
+    class HBaseRelation
+    class HBaseTableScanRDD
+    class SerializedFilter { &lt;&lt;case class&gt;&gt; }
+    class ExecutionRuleForUnitTesting
+    class S3NaiveEncoder["NaiveEncoder"]
+    class S3Field["Field"]
+  }
+
+  namespace spark4 {
+    class HBaseScanBuilder
+    class HBaseScan
+    class HBaseBatch
+    class HBasePartitionReaderFactory
+    class HBasePartitionReader
+    class S4NaiveEncoder["NaiveEncoder"]
+    class S4Field["Field"]
+  }
+
+  SparkSQLPushDownFilter --|> FilterBase
+  SparkSQLPushDownFilter o-- DynamicLogicExpression : expression
+  SparkSQLPushDownFilter --> ByteArrayComparable : column maps
+  SparkSQLPushDownFilter ..> PushdownMappedField : ctor input
+  SparkSQLPushDownFilter ..> DynamicLogicExpressionBuilder : parseFrom
+  SparkSQLPushDownFilter ..> JavaBytesEncoder : create
+  SparkSQLPushDownFilter ..> SparkFilterProtos : serialize
+
+  DynamicLogicExpression --> BytesEncoder : encoder
+  DynamicLogicExpression ..> ByteArrayComparable : row values
+  DynamicLogicExpression ..> JavaBytesEncoder : filterOps
+  CompareTrait ..> DynamicLogicExpression : self-type
+
+  AndLogicExpression --|> DynamicLogicExpression
+  OrLogicExpression --|> DynamicLogicExpression
+  AndLogicExpression o-- DynamicLogicExpression : left, right
+  OrLogicExpression o-- DynamicLogicExpression : left, right
+  EqualLogicExpression --|> DynamicLogicExpression
+  StartsWithLogicExpression --|> DynamicLogicExpression
+  IsNullLogicExpression --|> DynamicLogicExpression
+  PassThroughLogicExpression --|> DynamicLogicExpression
+  GreaterThanLogicExpression --|> DynamicLogicExpression
+  GreaterThanOrEqualLogicExpression --|> DynamicLogicExpression
+  LessThanLogicExpression --|> DynamicLogicExpression
+  LessThanOrEqualLogicExpression --|> DynamicLogicExpression
+  GreaterThanLogicExpression ..|> CompareTrait
+  GreaterThanOrEqualLogicExpression ..|> CompareTrait
+  LessThanLogicExpression ..|> CompareTrait
+  LessThanOrEqualLogicExpression ..|> CompareTrait
+  DynamicLogicExpressionBuilder ..> DynamicLogicExpression : builds tree
+
+  BytesEncoder ..> BoundRanges : ranges
+  BoundRanges *-- BoundRange : less, greater
+  JavaBytesEncoder ..> BytesEncoder : create via reflection
+
+  S3NaiveEncoder ..|> BytesEncoder
+  HBaseRelation ..> JavaBytesEncoder : create
+  HBaseRelation ..> DynamicLogicExpression : builds tree
+  HBaseRelation ..> BoundRanges : encoder.ranges
+  HBaseRelation ..> SparkSQLPushDownFilter : new
+  HBaseRelation ..> HBaseTableScanRDD : new
+  S3Field ..> PushdownMappedField : anon adapter
+  HBaseTableScanRDD o-- SparkSQLPushDownFilter : filter
+  SerializedFilter ..> SparkSQLPushDownFilter : toByteArray, parseFrom
+  ExecutionRuleForUnitTesting o-- DynamicLogicExpression
+
+  S4NaiveEncoder ..|> BytesEncoder
+  HBaseScanBuilder ..> JavaBytesEncoder : create
+  HBaseScanBuilder ..> HBaseScan : new
+  HBaseScan --> BytesEncoder : encoder
+  HBaseScan ..> BoundRanges : encoder.ranges
+  HBaseScan ..> HBaseBatch
+  HBaseBatch ..> HBasePartitionReaderFactory
+  HBasePartitionReaderFactory ..> HBasePartitionReader : new
+  HBasePartitionReader ..> JavaBytesEncoder : create
+  HBasePartitionReader ..> DynamicLogicExpression : builds tree
+  HBasePartitionReader o-- SparkSQLPushDownFilter : pushDownFilter
+  S4Field ..> PushdownMappedField : anon adapter
+</pre>
+  </div>
+
+  <section>
+    <h2>Arrow legend</h2>
+    <table class="legend">
+      <tr><td>A --|&gt; B</td><td>A extends B</td></tr>
+      <tr><td>A ..|&gt; B</td><td>A implements B, or mixes in trait B</td></tr>
+      <tr><td>A o-- B</td><td>A holds a reference to B (field)</td></tr>
+      <tr><td>A *-- B</td><td>A is composed of B</td></tr>
+      <tr><td>A --&gt; B</td><td>A has a field typed B</td></tr>
+      <tr><td>A ..&gt; B</td><td>A uses or creates B</td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>Who touches the pushdown classes</h2>
+    <div class="modules">
+      <div class="module core">
+        <h3>hbase-spark-pushdown (shared)</h3>
+        <div class="path">spark/hbase-spark-pushdown/src/main</div>
+        <ul>
+          <li><code>SparkSQLPushDownFilter</code>: the HBase filter that runs on the region server</li>
+          <li><code>DynamicLogicExpression</code> tree: 11 node types plus the string builder</li>
+          <li><code>BytesEncoder</code> / <code>JavaBytesEncoder</code>: encoder plug-in and compare ops</li>
+          <li><code>PushdownMappedField</code>: lets each connector pass its own <code>Field</code></li>
+        </ul>
+      </div>
+      <div class="module">
+        <h3>spark (Spark 3)</h3>
+        <div class="path">spark/hbase-spark</div>
+        <ul>
+          <li><code>HBaseRelation</code> (DefaultSource.scala) turns Spark filters into an expression tree and builds the filter</li>
+          <li><code>HBaseTableScanRDD</code> carries it; <code>SerializedFilter</code> ships it to executors as bytes</li>
+          <li><code>NaiveEncoder</code> implements <code>BytesEncoder</code></li>
+        </ul>
+      </div>
+      <div class="module">
+        <h3>spark4</h3>
+        <div class="path">spark4/hbase-spark4</div>
+        <ul>
+          <li><code>HBaseScanBuilder</code> creates the encoder; <code>HBaseScan</code> uses it for row-key ranges</li>
+          <li><code>HBasePartitionReader</code> builds the expression tree and filter per partition</li>
+          <li><code>NaiveEncoder</code> implements <code>BytesEncoder</code></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Side finding</h2>
+    <p class="note"><code>JavaBytesEncoder.naiveFallbackEncoder()</code> tries
+      <code>org.apache.hadoop.hbase.spark4.datasources.NaiveEncoder</code> first. That class does not exist:
+      spark4's <code>NaiveEncoder</code> lives in <code>org.apache.hadoop.hbase.spark.datasources</code>, the same
+      package as Spark 3's. The second candidate resolves in both connectors, so the fallback works, but the first
+      entry is dead.</p>
+  </section>
+
+  <section>
+    <div class="src-head">
+      <h2>Mermaid source</h2>
+      <button type="button" id="copy-src">Copy source</button>
+    </div>
+    <pre class="src" id="mermaid-src">classDiagram
+  direction LR
+
+  namespace external {
+    class FilterBase { &lt;&lt;HBase&gt;&gt; }
+    class SparkFilterProtos { &lt;&lt;protobuf&gt;&gt; }
+  }
+
+  namespace pushdown {
+    class SparkSQLPushDownFilter
+    class PushdownMappedField { &lt;&lt;interface&gt;&gt; }
+    class ByteArrayComparable
+    class DynamicLogicExpression { &lt;&lt;trait&gt;&gt; }
+    class CompareTrait { &lt;&lt;trait&gt;&gt; }
+    class AndLogicExpression
+    class OrLogicExpression
+    class EqualLogicExpression
+    class StartsWithLogicExpression
+    class IsNullLogicExpression
+    class PassThroughLogicExpression
+    class GreaterThanLogicExpression
+    class GreaterThanOrEqualLogicExpression
+    class LessThanLogicExpression
+    class LessThanOrEqualLogicExpression
+    class DynamicLogicExpressionBuilder { &lt;&lt;object&gt;&gt; }
+    class BytesEncoder { &lt;&lt;trait&gt;&gt; }
+    class JavaBytesEncoder { &lt;&lt;Enumeration&gt;&gt; }
+    class BoundRanges { &lt;&lt;case class&gt;&gt; }
+    class BoundRange { &lt;&lt;case class&gt;&gt; }
+  }
+
+  namespace spark3 {
+    class HBaseRelation
+    class HBaseTableScanRDD
+    class SerializedFilter { &lt;&lt;case class&gt;&gt; }
+    class ExecutionRuleForUnitTesting
+    class S3NaiveEncoder["NaiveEncoder"]
+    class S3Field["Field"]
+  }
+
+  namespace spark4 {
+    class HBaseScanBuilder
+    class HBaseScan
+    class HBaseBatch
+    class HBasePartitionReaderFactory
+    class HBasePartitionReader
+    class S4NaiveEncoder["NaiveEncoder"]
+    class S4Field["Field"]
+  }
+
+  SparkSQLPushDownFilter --|&gt; FilterBase
+  SparkSQLPushDownFilter o-- DynamicLogicExpression : expression
+  SparkSQLPushDownFilter --&gt; ByteArrayComparable : column maps
+  SparkSQLPushDownFilter ..&gt; PushdownMappedField : ctor input
+  SparkSQLPushDownFilter ..&gt; DynamicLogicExpressionBuilder : parseFrom
+  SparkSQLPushDownFilter ..&gt; JavaBytesEncoder : create
+  SparkSQLPushDownFilter ..&gt; SparkFilterProtos : serialize
+
+  DynamicLogicExpression --&gt; BytesEncoder : encoder
+  DynamicLogicExpression ..&gt; ByteArrayComparable : row values
+  DynamicLogicExpression ..&gt; JavaBytesEncoder : filterOps
+  CompareTrait ..&gt; DynamicLogicExpression : self-type
+
+  AndLogicExpression --|&gt; DynamicLogicExpression
+  OrLogicExpression --|&gt; DynamicLogicExpression
+  AndLogicExpression o-- DynamicLogicExpression : left, right
+  OrLogicExpression o-- DynamicLogicExpression : left, right
+  EqualLogicExpression --|&gt; DynamicLogicExpression
+  StartsWithLogicExpression --|&gt; DynamicLogicExpression
+  IsNullLogicExpression --|&gt; DynamicLogicExpression
+  PassThroughLogicExpression --|&gt; DynamicLogicExpression
+  GreaterThanLogicExpression --|&gt; DynamicLogicExpression
+  GreaterThanOrEqualLogicExpression --|&gt; DynamicLogicExpression
+  LessThanLogicExpression --|&gt; DynamicLogicExpression
+  LessThanOrEqualLogicExpression --|&gt; DynamicLogicExpression
+  GreaterThanLogicExpression ..|&gt; CompareTrait
+  GreaterThanOrEqualLogicExpression ..|&gt; CompareTrait
+  LessThanLogicExpression ..|&gt; CompareTrait
+  LessThanOrEqualLogicExpression ..|&gt; CompareTrait
+  DynamicLogicExpressionBuilder ..&gt; DynamicLogicExpression : builds tree
+
+  BytesEncoder ..&gt; BoundRanges : ranges
+  BoundRanges *-- BoundRange : less, greater
+  JavaBytesEncoder ..&gt; BytesEncoder : create via reflection
+
+  S3NaiveEncoder ..|&gt; BytesEncoder
+  HBaseRelation ..&gt; JavaBytesEncoder : create
+  HBaseRelation ..&gt; DynamicLogicExpression : builds tree
+  HBaseRelation ..&gt; BoundRanges : encoder.ranges
+  HBaseRelation ..&gt; SparkSQLPushDownFilter : new
+  HBaseRelation ..&gt; HBaseTableScanRDD : new
+  S3Field ..&gt; PushdownMappedField : anon adapter
+  HBaseTableScanRDD o-- SparkSQLPushDownFilter : filter
+  SerializedFilter ..&gt; SparkSQLPushDownFilter : toByteArray, parseFrom
+  ExecutionRuleForUnitTesting o-- DynamicLogicExpression
+
+  S4NaiveEncoder ..|&gt; BytesEncoder
+  HBaseScanBuilder ..&gt; JavaBytesEncoder : create
+  HBaseScanBuilder ..&gt; HBaseScan : new
+  HBaseScan --&gt; BytesEncoder : encoder
+  HBaseScan ..&gt; BoundRanges : encoder.ranges
+  HBaseScan ..&gt; HBaseBatch
+  HBaseBatch ..&gt; HBasePartitionReaderFactory
+  HBasePartitionReaderFactory ..&gt; HBasePartitionReader : new
+  HBasePartitionReader ..&gt; JavaBytesEncoder : create
+  HBasePartitionReader ..&gt; DynamicLogicExpression : builds tree
+  HBasePartitionReader o-- SparkSQLPushDownFilter : pushDownFilter
+  S4Field ..&gt; PushdownMappedField : anon adapter</pre>
+  </section>
+</div>
+
+<script>
+  (function () {
+    var srcEl = document.getElementById('mermaid-src');
+    var text = srcEl.textContent;
+    var btn = document.getElementById('copy-src');
+    btn.addEventListener('click', function () {
+      var done = function () { btn.textContent = 'Copied'; setTimeout(function () { btn.textContent = 'Copy source'; }, 1500); };
+      var fallback = function () {
+        var r = document.createRange(); r.selectNodeContents(srcEl);
+        var s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+        btn.textContent = 'Selected, press Ctrl/Cmd+C';
+      };
+      try {
+        navigator.clipboard.writeText(text).then(done, fallback);
+      } catch (e) { fallback(); }
+    });
+  })();
+</script>
