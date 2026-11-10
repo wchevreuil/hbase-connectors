@@ -15,7 +15,6 @@ sequenceDiagram
     Note over CAT: SELECT COUNT(*) ... WHERE gender='Male' AND dengue_label='1'
     CAT->>HR: buildScan([gender, dengue_label], [IsNotNull x2, EqualTo x2])
     HR->>HR: transverseFilterTree per filter
-    Note over HR: RowKeyFilter = full range (no rowkey predicates)<br/>DLE = (gender isNotNull AND dengue_label isNotNull)<br/>AND gender == 0 AND dengue_label == 1<br/>valueArray = ["Male", "1"]
     HR->>HR: new SparkSQLPushDownFilter(DLE, valueArray, column map)
     HR->>RDD: new HBaseTableScanRDD(filter, columns) then addRange(full range)
     HR->>RDD: map(buildRow) then partitions
