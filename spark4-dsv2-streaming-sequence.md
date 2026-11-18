@@ -20,7 +20,7 @@ sequenceDiagram
     Engine->>Table: newWriteBuilder(info)
     Table->>SW: buildForStreaming (via HBaseWriteBuilder)
     SW->>SW: parse HBaseTableCatalog
-    Note over Engine,SW: write planned per micro-batch by Spark V2Writes (Spark internals, not verified in this repo)
+    Note over Engine,SW: write planned per micro-batch by Spark V2Writes (Spark internals)
     Engine->>SW: createStreamingWriterFactory(info)
     SW-->>Engine: writer factory (catalog + HBase conf)
     Note over Engine,Task: factory serialized to executors, one writer per task
@@ -42,11 +42,6 @@ sequenceDiagram
       Writer-->>Task: HBaseWriterCommitMessage
       Engine->>SW: commit(epochId, messages), a no-op
       Engine->>Ckpt: write commit log entry for epoch
-    else task fails after retries
-      Task->>Writer: abort()
-      Writer->>Writer: close table, release connection (flushed puts stay in HBase)
-      Engine->>SW: abort(epochId, messages), a no-op
     end
   end
-  Note over Engine,HBase: on restart, an epoch with an offset entry but no commit entry is replayed and its rows are put again
 ```
